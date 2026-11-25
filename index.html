@@ -1,0 +1,2132 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
+<meta name="theme-color" content="#0f172a">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-title" content="Reporte Turno">
+<link rel="manifest" href="manifest.webmanifest">
+<link rel="apple-touch-icon" href="icons/icon-192.png">
+<title>Dashboard de Reporte de Turno</title>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.0/chart.umd.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
+<style>
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  :focus-visible { outline: 3px solid #d69e2e; outline-offset: 2px; }
+  body {
+    font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+    background: linear-gradient(135deg, #0f172a 0%, #1e3a5f 50%, #2c5282 100%);
+    min-height: 100vh;
+    padding: 20px;
+    color: #2d3748;
+  }
+  .container {
+    max-width: 1500px;
+    margin: 0 auto;
+    background: white;
+    border-radius: 16px;
+    box-shadow: 0 25px 70px rgba(0,0,0,0.4);
+    overflow: hidden;
+  }
+  .header {
+    background: linear-gradient(135deg, #0f172a 0%, #1e3a5f 50%, #2c5282 100%);
+    color: white;
+    padding: 35px 45px;
+    border-bottom: 4px solid #d69e2e;
+    position: relative;
+    overflow: hidden;
+  }
+  .header::before {
+    content:'';
+    position:absolute;
+    top:-50%;
+    right:-10%;
+    width:300px;
+    height:300px;
+    background: radial-gradient(circle, rgba(214,158,46,0.15) 0%, transparent 70%);
+    border-radius:50%;
+    pointer-events:none;
+  }
+  .header-top { display:flex; justify-content:space-between; align-items:flex-start; gap:14px; flex-wrap:wrap; position:relative; }
+  .header h1 {
+    font-size: 30px;
+    margin-bottom: 8px;
+    position:relative;
+    display:flex;
+    align-items:center;
+    gap:14px;
+  }
+  .header-icon {
+    width: 48px; height: 48px;
+    background: rgba(214,158,46,0.2);
+    border: 2px solid #d69e2e;
+    border-radius: 12px;
+    display:flex; align-items:center; justify-content:center;
+    font-size:26px;
+    flex:none;
+  }
+  .header p { opacity: 0.85; font-size: 14px; position:relative; }
+  .badge-folio {
+    background: linear-gradient(135deg, #d69e2e, #b7791f);
+    color: white;
+    padding: 6px 16px;
+    border-radius: 20px;
+    font-size: 13px;
+    font-weight: bold;
+    display: inline-block;
+    margin-top: 12px;
+    box-shadow: 0 4px 12px rgba(214,158,46,0.4);
+    position:relative;
+  }
+  .sync-chip {
+    border: 1px solid rgba(255,255,255,0.35);
+    background: rgba(255,255,255,0.08);
+    color: #fff;
+    padding: 8px 16px;
+    border-radius: 20px;
+    font-size: 13px;
+    font-weight: 600;
+    cursor: pointer;
+    min-height: 38px;
+    position: relative;
+    font-family: inherit;
+  }
+  .sync-chip.ok { background: rgba(56,161,105,0.28); border-color: #68d391; }
+  .sync-chip.sync { background: rgba(66,153,225,0.28); border-color: #90cdf4; }
+  .sync-chip.pending { background: rgba(214,158,46,0.3); border-color: #f6e05e; }
+  .sync-chip.error { background: rgba(229,62,62,0.35); border-color: #feb2b2; }
+
+  .tabs {
+    display: flex;
+    background: #f7fafc;
+    border-bottom: 2px solid #e2e8f0;
+    overflow-x:auto;
+  }
+  .tab {
+    flex: 1;
+    min-width:140px;
+    padding: 18px 20px;
+    text-align: center;
+    cursor: pointer;
+    font-weight: 600;
+    font-family: inherit;
+    font-size: 15px;
+    color: #4a5568;
+    background: transparent;
+    border: none;
+    border-bottom: 3px solid transparent;
+    transition: all 0.3s;
+    white-space: nowrap;
+  }
+  .tab .lbl-short { display:none; }
+  .tab .ico { margin-right: 8px; }
+  .tab:hover { background: #edf2f7; }
+  .tab.active {
+    color: #2c5282;
+    border-bottom-color: #d69e2e;
+    background: white;
+  }
+  .tab-content {
+    display: none;
+    padding: 30px 40px;
+    animation: fadeIn 0.4s;
+  }
+  @keyframes fadeIn { from {opacity:0; transform:translateY(10px);} to {opacity:1; transform:none;} }
+  .tab-content.active { display: block; }
+  .quick-note {
+    background:#ebf8ff; border:1px solid #bee3f8; color:#2a4365;
+    padding:12px 16px; border-radius:8px; font-size:13px; margin-bottom:20px; line-height:1.5;
+  }
+  .section {
+    margin-bottom: 25px;
+    border-left: 5px solid #2c5282;
+    background: linear-gradient(to right, #f7fafc, #ffffff);
+    padding: 22px;
+    border-radius: 8px;
+    box-shadow: 0 2px 8px rgba(0,0,0,0.04);
+    transition: transform 0.2s, box-shadow 0.2s;
+  }
+  .section:hover { box-shadow: 0 4px 16px rgba(0,0,0,0.08); }
+  .section.green { border-left-color: #38a169; }
+  .section.red { border-left-color: #e53e3e; }
+  .section.orange { border-left-color: #d69e2e; }
+  .section.purple { border-left-color: #805ad5; }
+  .section h2 {
+    color: #1e3a5f;
+    font-size: 16px;
+    margin-bottom: 18px;
+    font-weight: 700;
+    display:flex;
+    align-items:center;
+    gap:10px;
+  }
+  .section.green h2 { color: #2f855a; }
+  .section.red h2 { color: #c53030; }
+  .section.orange h2 { color: #b7791f; }
+  .section.purple h2 { color: #6b46c1; }
+  .section h2 .icon {
+    width:32px; height:32px;
+    border-radius:8px;
+    display:flex; align-items:center; justify-content:center;
+    background: rgba(44,82,130,0.1);
+    font-size:16px;
+    flex:none;
+  }
+  .section.green h2 .icon { background: rgba(47,133,90,0.12); }
+  .section.red h2 .icon { background: rgba(197,48,48,0.12); }
+  .section.orange h2 .icon { background: rgba(183,121,31,0.12); }
+  .section.purple h2 .icon { background: rgba(107,70,193,0.12); }
+  .form-row {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+    gap: 15px;
+    margin-bottom: 12px;
+  }
+  .form-group { display: flex; flex-direction: column; min-width: 0; }
+  .form-row > * { min-width: 0; }
+  .form-group input, .form-group select, .form-group textarea { width: 100%; min-width: 0; }
+  .form-group label {
+    font-size: 12px;
+    color: #4a5568;
+    margin-bottom: 5px;
+    font-weight: 600;
+  }
+  .form-group input, .form-group select, .form-group textarea, .modal input, .modal select {
+    padding: 9px 12px;
+    border: 1px solid #cbd5e0;
+    border-radius: 6px;
+    font-size: 14px;
+    font-family: inherit;
+    transition: all 0.2s;
+    background: white;
+  }
+  .form-group input:focus, .form-group select:focus, .form-group textarea:focus, .modal input:focus {
+    outline: none;
+    border-color: #2c5282;
+    box-shadow: 0 0 0 3px rgba(44,82,130,0.12);
+  }
+  .form-group input[readonly] { background: #edf2f7; cursor: not-allowed; }
+  .form-group textarea { resize: vertical; min-height: 80px; }
+  .full-width { grid-column: 1 / -1; }
+
+  /* Stats - access */
+  .stats-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
+    gap: 12px;
+  }
+  .stat-box {
+    background: white;
+    padding: 14px 10px;
+    border-radius: 10px;
+    text-align: center;
+    border: 2px solid #e2e8f0;
+    transition: all 0.2s;
+    position: relative;
+    overflow: hidden;
+  }
+  .stat-box::before {
+    content:'';
+    position:absolute;
+    top:0; left:0; right:0;
+    height:3px;
+    background: var(--accent, #2c5282);
+  }
+  .stat-box:hover {
+    transform: translateY(-2px);
+    box-shadow: 0 6px 16px rgba(0,0,0,0.1);
+    border-color: var(--accent, #2c5282);
+  }
+  .stat-box label {
+    display: block;
+    font-size: 11px;
+    color: #4a5568;
+    margin-bottom: 6px;
+    text-transform: uppercase;
+    font-weight: 700;
+    letter-spacing: 0.5px;
+  }
+  .stepper { display:flex; align-items:center; gap:4px; }
+  .stepper input {
+    flex:1; min-width:0; width:100%;
+    text-align: center;
+    font-size: 26px;
+    font-weight: bold;
+    color: var(--accent, #2c5282);
+    border: none;
+    background: transparent;
+    padding: 4px 0;
+    -moz-appearance: textfield;
+    appearance: textfield;
+  }
+  .stepper input::-webkit-outer-spin-button, .stepper input::-webkit-inner-spin-button { -webkit-appearance: none; margin: 0; }
+  .stepper input:focus { outline: 2px solid #d69e2e; border-radius: 4px; }
+  .step {
+    width: 36px; height: 36px; flex: none;
+    border: 1px solid #cbd5e0; background: #f7fafc; border-radius: 8px;
+    font-size: 20px; line-height: 1; cursor: pointer; color: #2c5282; font-weight: 700;
+    font-family: inherit;
+  }
+  .step:active { background: #2c5282; color: #fff; }
+  .stat-icon { font-size: 20px; margin-bottom: 4px; opacity: 0.7; }
+
+  .button-row {
+    display: flex;
+    gap: 10px;
+    margin-top: 22px;
+    flex-wrap: wrap;
+  }
+  .mobile-save { display:none; }
+  .btn {
+    padding: 12px 22px;
+    border: none;
+    border-radius: 8px;
+    font-size: 14px;
+    font-weight: 600;
+    font-family: inherit;
+    cursor: pointer;
+    transition: all 0.2s;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    gap: 8px;
+  }
+  .btn:hover { transform: translateY(-1px); }
+  .btn-primary { background: linear-gradient(135deg, #2c5282, #1e3a5f); color: white; box-shadow: 0 4px 12px rgba(44,82,130,0.3); }
+  .btn-success { background: linear-gradient(135deg, #38a169, #2f855a); color: white; box-shadow: 0 4px 12px rgba(56,161,105,0.3); }
+  .btn-warning { background: linear-gradient(135deg, #d69e2e, #b7791f); color: white; box-shadow: 0 4px 12px rgba(214,158,46,0.3); }
+  .btn-danger { background: linear-gradient(135deg, #e53e3e, #c53030); color: white; box-shadow: 0 4px 12px rgba(229,62,62,0.3); }
+  .btn-secondary { background: #718096; color: white; }
+  .btn-secondary:hover { background: #4a5568; }
+  .btn-small { padding: 8px 14px; font-size: 13px; }
+
+  /* Period bar (dashboard) */
+  .period-bar {
+    display:flex; flex-wrap:wrap; gap:12px 16px; align-items:center;
+    margin-bottom:20px; padding:14px 16px;
+    background:#f7fafc; border:1px solid #e2e8f0; border-radius:10px;
+  }
+  .seg { display:inline-flex; border:1px solid #cbd5e0; border-radius:8px; overflow:hidden; background:#fff; }
+  .seg button {
+    padding:10px 16px; border:none; background:#fff; color:#4a5568;
+    font-weight:600; font-size:13px; cursor:pointer; min-height:42px; font-family:inherit;
+  }
+  .seg button + button { border-left:1px solid #e2e8f0; }
+  .seg button.active { background:#2c5282; color:#fff; }
+  .nav-arrows { display:flex; align-items:center; gap:8px; font-weight:600; color:#1e3a5f; font-size:14px; }
+  .nav-arrows button {
+    width:38px; height:38px; border:1px solid #cbd5e0; background:#fff;
+    border-radius:8px; cursor:pointer; font-size:14px; font-family:inherit;
+  }
+  .nav-arrows button:disabled { opacity:.4; cursor:not-allowed; }
+  .filters { display:flex; flex-wrap:wrap; gap:8px; align-items:center; }
+  .filters select { padding:8px 10px; border:1px solid #cbd5e0; border-radius:6px; font-size:13px; background:#fff; font-family:inherit; }
+  .chk { font-size:12px; color:#4a5568; display:flex; gap:6px; align-items:center; cursor:pointer; }
+  .live { margin-left:auto; font-size:12px; color:#2f855a; font-weight:600; display:flex; align-items:center; gap:6px; }
+  .live::before {
+    content:''; width:9px; height:9px; border-radius:50%; background:#38a169; display:inline-block;
+    animation: livepulse 1.8s infinite;
+  }
+  @keyframes livepulse { 0%{box-shadow:0 0 0 0 rgba(56,161,105,.5);} 70%{box-shadow:0 0 0 8px rgba(56,161,105,0);} 100%{box-shadow:0 0 0 0 rgba(56,161,105,0);} }
+  @media (prefers-reduced-motion: reduce) { .live::before { animation:none; } .tab-content { animation:none; } }
+
+  .charts-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(min(100%, 380px), 1fr));
+    gap: 22px;
+    margin-bottom: 25px;
+  }
+  .chart-card {
+    background: white;
+    padding: 22px;
+    border-radius: 12px;
+    box-shadow: 0 4px 12px rgba(0,0,0,0.06);
+    border: 1px solid #e2e8f0;
+    transition: transform 0.3s, box-shadow 0.3s;
+  }
+  .chart-card:hover {
+    transform: translateY(-3px);
+    box-shadow: 0 8px 24px rgba(0,0,0,0.1);
+  }
+  .chart-card h3 {
+    color: #1e3a5f;
+    font-size: 14px;
+    margin-bottom: 15px;
+    padding-bottom: 10px;
+    border-bottom: 2px solid #f0f0f0;
+    display:flex; align-items:center; gap:8px;
+  }
+  .chart-container { position: relative; height: 280px; }
+
+  .kpi-row {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(170px, 1fr));
+    gap: 15px;
+    margin-bottom: 25px;
+  }
+  .kpi-card {
+    background: linear-gradient(135deg, #2c5282 0%, #1e3a5f 100%);
+    color: white;
+    padding: 22px;
+    border-radius: 12px;
+    text-align: center;
+    position: relative;
+    overflow: hidden;
+    transition: transform 0.3s;
+  }
+  .kpi-card:hover { transform: translateY(-4px); }
+  .kpi-card::before {
+    content:'';
+    position:absolute;
+    top:-30%; right:-30%;
+    width:120px; height:120px;
+    background: rgba(255,255,255,0.1);
+    border-radius:50%;
+  }
+  .kpi-card.green { background: linear-gradient(135deg, #38a169 0%, #2f855a 100%); }
+  .kpi-card.red { background: linear-gradient(135deg, #e53e3e 0%, #c53030 100%); }
+  .kpi-card.orange { background: linear-gradient(135deg, #d69e2e 0%, #b7791f 100%); }
+  .kpi-card.purple { background: linear-gradient(135deg, #805ad5 0%, #6b46c1 100%); }
+  .kpi-card.teal { background: linear-gradient(135deg, #319795 0%, #2c7a7b 100%); }
+  .kpi-card .icon { font-size: 28px; margin-bottom: 8px; opacity: 0.9; }
+  .kpi-card .value { font-size: 38px; font-weight: bold; margin-bottom: 5px; position:relative; }
+  .kpi-card .label { font-size: 11px; opacity: 0.95; text-transform: uppercase; letter-spacing: 1px; position:relative; }
+
+  /* Dynamic lists */
+  .dynamic-item {
+    background: white;
+    padding: 12px;
+    border-radius: 8px;
+    margin-bottom: 10px;
+    border: 1px solid #e2e8f0;
+    display: grid;
+    gap: 10px;
+    align-items: center;
+  }
+  .dynamic-item.cols-3 { grid-template-columns: 1fr 1fr 1fr 36px; }
+  .dynamic-item input, .dynamic-item select {
+    padding: 8px 10px;
+    border: 1px solid #cbd5e0;
+    border-radius: 5px;
+    font-size: 13px;
+    font-family: inherit;
+    min-width: 0;
+  }
+  .remove-btn {
+    background: #fed7d7;
+    color: #c53030;
+    border: none;
+    width: 32px; height: 32px;
+    border-radius: 6px;
+    cursor: pointer;
+    font-weight: bold;
+    font-size: 18px;
+    display:flex; align-items:center; justify-content:center;
+    transition: all 0.2s;
+  }
+  .remove-btn:hover { background: #e53e3e; color: white; }
+  .add-btn {
+    background: #ebf8ff;
+    color: #2c5282;
+    border: 2px dashed #90cdf4;
+    padding: 10px 16px;
+    border-radius: 8px;
+    cursor: pointer;
+    font-weight: 600;
+    font-family: inherit;
+    width: 100%;
+    margin-top: 8px;
+    transition: all 0.2s;
+  }
+  .add-btn:hover { background: #2c5282; color: white; border-color: #2c5282; }
+  .list-hint { font-size:12px; color:#718096; padding:6px 2px; }
+  .equip-head { display:flex; align-items:center; justify-content:space-between; gap:10px; flex-wrap:wrap; margin-top:18px; margin-bottom:8px; }
+  .equip-head h3 { font-size:13px; color:#2f855a; }
+  .equip-head.first { margin-top:8px; }
+
+  .alert-badge { display: inline-block; padding: 3px 10px; border-radius: 12px; font-size: 11px; font-weight: bold; color: white; }
+  .alert-verde { background: #38a169; }
+  .alert-amarillo { background: #d69e2e; }
+  .alert-naranja { background: #dd6b20; }
+  .alert-rojo { background: #e53e3e; }
+
+  /* Database / Search */
+  .search-bar { display: flex; gap: 10px; margin-bottom: 20px; flex-wrap: wrap; }
+  .search-bar input[type=text] {
+    flex: 1; min-width: 200px;
+    padding: 12px 16px;
+    border: 2px solid #e2e8f0;
+    border-radius: 8px;
+    font-size: 15px;
+    font-family: inherit;
+  }
+  .search-bar input:focus { outline: none; border-color: #2c5282; }
+  #tableContainer { overflow-x: auto; }
+  .report-table {
+    width: 100%;
+    border-collapse: collapse;
+    background: white;
+    border-radius: 8px;
+    overflow: hidden;
+    box-shadow: 0 2px 8px rgba(0,0,0,0.05);
+  }
+  .report-table th {
+    background: linear-gradient(135deg, #2c5282, #1e3a5f);
+    color: white;
+    padding: 12px;
+    text-align: left;
+    font-size: 13px;
+    font-weight: 600;
+    white-space: nowrap;
+  }
+  .report-table td { padding: 12px; border-bottom: 1px solid #e2e8f0; font-size: 13px; }
+  .report-table tr:hover { background: #f7fafc; }
+  .row-actions { display: flex; gap: 6px; }
+  .row-actions button { padding: 6px 12px; border: none; border-radius: 5px; cursor: pointer; font-size: 12px; font-weight: 600; font-family: inherit; }
+  .btn-view { background: #2c5282; color: white; }
+  .btn-print { background: #d69e2e; color: white; }
+  .btn-delete { background: #e53e3e; color: white; }
+
+  .empty-state { text-align: center; padding: 40px; color: #718096; }
+  .empty-state .emoji { font-size: 48px; margin-bottom: 10px; }
+
+  .progress-bar { width: 100%; height: 24px; background: #e2e8f0; border-radius: 12px; overflow: hidden; margin-top: 6px; position: relative; }
+  .progress-fill {
+    height: 100%;
+    background: linear-gradient(90deg, #38a169, #2f855a);
+    transition: width 0.5s;
+    display: flex; align-items: center; justify-content: center;
+    color: white; font-weight: bold; font-size: 12px;
+  }
+  .progress-fill.warning { background: linear-gradient(90deg, #d69e2e, #b7791f); }
+  .progress-fill.danger { background: linear-gradient(90deg, #e53e3e, #c53030); }
+
+  .toast {
+    position: fixed;
+    bottom: 30px;
+    right: 30px;
+    background: #2f855a;
+    color: white;
+    padding: 14px 22px;
+    border-radius: 8px;
+    box-shadow: 0 8px 24px rgba(0,0,0,0.3);
+    z-index: 1000;
+    opacity: 0;
+    transform: translateY(20px);
+    transition: all 0.3s;
+    font-weight: 600;
+    pointer-events: none;
+  }
+  .toast.show { opacity: 1; transform: translateY(0); }
+  .toast.error { background: #c53030; }
+  .toast.warning { background: #b7791f; }
+
+  .footer-info {
+    background: linear-gradient(135deg, #f7fafc, #edf2f7);
+    padding: 22px;
+    border-radius: 10px;
+    margin-top: 20px;
+    border: 1px solid #e2e8f0;
+  }
+  .mini-table { width:100%; border-collapse:collapse; margin-top:8px; font-size:13px; }
+  .mini-table td, .mini-table th { padding:6px 8px; border-bottom:1px solid #e2e8f0; text-align:left; }
+
+  /* Modal sincronización */
+  .modal-bg {
+    position: fixed; inset: 0; background: rgba(15,23,42,0.6); z-index: 2000;
+    display: none; align-items: center; justify-content: center; padding: 16px;
+  }
+  .modal-bg.show { display: flex; }
+  .modal {
+    background: #fff; border-radius: 14px; max-width: 560px; width: 100%;
+    max-height: 92vh; overflow-y: auto; padding: 24px;
+    box-shadow: 0 25px 70px rgba(0,0,0,0.5);
+  }
+  .modal h2 { color: #1e3a5f; font-size: 18px; margin-bottom: 6px; }
+  .modal p.sub { font-size: 13px; color: #4a5568; margin-bottom: 16px; line-height: 1.5; }
+  .modal .form-group { margin-bottom: 12px; }
+  .modal .form-group label { font-size: 12px; }
+  .modal .note { font-size: 12px; color: #744210; background: #fefcbf; border-radius: 8px; padding: 10px 12px; margin: 10px 0; line-height: 1.5; }
+  .modal .status { font-size: 13px; margin: 8px 0; min-height: 18px; }
+
+  @media (max-width: 760px) {
+    body { padding: 0; background: #0f172a; }
+    .container { border-radius: 0; box-shadow: none; min-height: 100vh; padding-bottom: calc(66px + env(safe-area-inset-bottom)); }
+    .header { padding: 18px 16px; }
+    .header h1 { font-size: 20px; gap: 10px; margin-bottom: 4px; }
+    .header-icon { width: 38px; height: 38px; font-size: 20px; }
+    .header p { font-size: 12px; }
+    .badge-folio { margin-top: 8px; font-size: 12px; }
+    .tabs {
+      position: fixed; left: 0; right: 0; bottom: 0; z-index: 60;
+      overflow: visible; background: #fff; border-bottom: none; border-top: 1px solid #e2e8f0;
+      box-shadow: 0 -4px 16px rgba(0,0,0,0.12);
+      padding-bottom: env(safe-area-inset-bottom);
+    }
+    .tab {
+      min-width: 0; padding: 8px 2px 6px; font-size: 11px;
+      display: flex; flex-direction: column; align-items: center; gap: 2px;
+      border-bottom: none; border-top: 3px solid transparent; min-height: 56px;
+    }
+    .tab .ico { font-size: 20px; line-height: 1; margin-right: 0; }
+    .form-row > .form-group:first-child { grid-column: 1 / -1; }
+    .tab .lbl-long { display: none; }
+    .tab .lbl-short { display: inline; }
+    .tab.active { border-top-color: #d69e2e; }
+    .tab-content { padding: 16px 12px; }
+    .section { padding: 14px; margin-bottom: 16px; }
+    .form-row { grid-template-columns: 1fr 1fr; gap: 12px; }
+    .form-group input, .form-group select, .form-group textarea,
+    .dynamic-item input, .dynamic-item select, .filters select, .modal input, .modal select { font-size: 16px; min-height: 44px; }
+    .stats-grid { grid-template-columns: 1fr 1fr; gap: 10px; }
+    .step { width: 40px; height: 40px; }
+    .dynamic-item, .dynamic-item.cols-3 { grid-template-columns: 1fr 1fr; }
+    .dynamic-item .remove-btn { width: 100%; height: 44px; }
+    .btn { min-height: 46px; }
+    .btn-save-desktop { display: none; }
+    .mobile-save {
+      display: block; position: sticky; bottom: calc(66px + env(safe-area-inset-bottom));
+      z-index: 40; padding: 10px 0 4px; background: linear-gradient(to top, #fff 70%, rgba(255,255,255,0));
+    }
+    .mobile-save .btn { width: 100%; font-size: 16px; min-height: 52px; }
+    .period-bar { padding: 12px; }
+    .seg { width: 100%; }
+    .seg button { flex: 1; padding: 10px 4px; }
+    .nav-arrows { width: 100%; justify-content: space-between; }
+    .live { margin-left: 0; width: 100%; }
+    .kpi-row { grid-template-columns: 1fr 1fr; gap: 10px; }
+    .kpi-card { padding: 14px 10px; }
+    .kpi-card .value { font-size: 28px; }
+    .kpi-card .icon { font-size: 22px; }
+    .chart-card { padding: 14px; }
+    .chart-container { height: 240px; }
+    .search-bar .btn { flex: 1; }
+    .toast { left: 12px; right: 12px; bottom: calc(80px + env(safe-area-inset-bottom)); text-align: center; }
+    .modal-bg { align-items: flex-end; padding: 0; }
+    .modal { border-radius: 16px 16px 0 0; max-height: 94vh; }
+  }
+  @media print {
+    body { background: white; padding: 0; }
+    .tabs, .button-row, .header, .mobile-save, .period-bar, .modal-bg { display: none; }
+  }
+</style>
+</head>
+<body>
+<div class="container">
+  <div class="header">
+    <div class="header-top">
+      <div>
+        <h1><span class="header-icon">📊</span> Dashboard de Reporte de Turno</h1>
+        <p>Sistema integral de gestión, reportería y análisis del servicio</p>
+      </div>
+      <button type="button" class="sync-chip" id="syncChip" onclick="openSyncModal()" aria-label="Configurar sincronización en la nube"></button>
+    </div>
+    <span class="badge-folio" id="folioDisplay">Folio: ---</span>
+  </div>
+
+  <div class="tabs" role="tablist">
+    <button type="button" class="tab active" onclick="showTab(0)"><span class="ico">📝</span><span class="lbl-long">Captura de Datos</span><span class="lbl-short">Captura</span></button>
+    <button type="button" class="tab" onclick="showTab(1)"><span class="ico">📊</span><span class="lbl-long">Dashboard</span><span class="lbl-short">Dashboard</span></button>
+    <button type="button" class="tab" onclick="showTab(2)"><span class="ico">🔍</span><span class="lbl-long">Buscar Informes</span><span class="lbl-short">Informes</span></button>
+    <button type="button" class="tab" onclick="showTab(3)"><span class="ico">📄</span><span class="lbl-long">Generar PDF</span><span class="lbl-short">PDF</span></button>
+  </div>
+
+  <!-- TAB 1: FORM DATA ENTRY -->
+  <div class="tab-content active" id="tab-form">
+    <div class="quick-note">⚡ <b>Captura rápida:</b> fecha, hora, turno, instalación, jefe, plantilla y equipos ya vienen precargados. Solo captura lo que cambió en el turno. Si se cierra la página, tu borrador se recupera solo.</div>
+
+    <div class="section">
+      <h2><span class="icon">📌</span> INFORMACIÓN GENERAL</h2>
+      <div class="form-row">
+        <div class="form-group">
+          <label for="folio">Folio (automático)</label>
+          <input type="text" id="folio" readonly>
+        </div>
+        <div class="form-group">
+          <label for="instalacion">Instalación / Cliente</label>
+          <input type="text" id="instalacion" list="dlInstalaciones" placeholder="Ej: Corporativo XYZ" autocomplete="off">
+          <datalist id="dlInstalaciones"></datalist>
+        </div>
+        <div class="form-group">
+          <label for="turno">Turno</label>
+          <select id="turno">
+            <option value="Matutino">Matutino</option>
+            <option value="Vespertino">Vespertino</option>
+            <option value="Nocturno">Nocturno</option>
+          </select>
+        </div>
+        <div class="form-group">
+          <label for="fecha">Fecha</label>
+          <input type="date" id="fecha">
+        </div>
+        <div class="form-group">
+          <label for="hora">Hora</label>
+          <input type="time" id="hora">
+        </div>
+        <div class="form-group">
+          <label for="jefe">Jefe de Servicio</label>
+          <input type="text" id="jefe" list="dlJefes" placeholder="Nombre completo" autocomplete="off">
+          <datalist id="dlJefes"></datalist>
+        </div>
+      </div>
+    </div>
+
+    <div class="section">
+      <h2><span class="icon">📋</span> 01. RESUMEN EJECUTIVO</h2>
+      <div class="form-group">
+        <label for="resumen">Novedades relevantes (3-5 líneas). Lo que el directivo debe saber en 30 segundos:</label>
+        <textarea id="resumen" rows="4" placeholder="Describa las novedades más relevantes del turno..."></textarea>
+      </div>
+      <button type="button" class="btn btn-secondary btn-small" style="margin-top:10px;" onclick="genResumen()">✨ Autogenerar borrador con los datos capturados</button>
+    </div>
+
+    <div class="section green">
+      <h2><span class="icon">🚪</span> 02. ESTADÍSTICAS DE ACCESO</h2>
+      <div class="stats-grid" id="statsGrid"></div>
+    </div>
+
+    <div class="section red">
+      <h2><span class="icon">🚨</span> 03. INCIDENTES DOCUMENTADOS</h2>
+      <p style="font-size:12px; color:#718096; margin-bottom:12px;">Liste cada incidente con su folio F-REPORTE y nivel de alerta activado. Si no hubo incidentes, déjelo vacío.</p>
+      <div id="incidentsList"></div>
+      <button type="button" class="add-btn" onclick="addIncident()">+ Agregar Incidente</button>
+    </div>
+
+    <div class="section purple">
+      <h2><span class="icon">👥</span> 04. ESTADO DEL PERSONAL</h2>
+      <div class="form-row">
+        <div class="form-group">
+          <label for="plantillaTotal">Plantilla total (personas programadas)</label>
+          <input type="number" id="plantillaTotal" value="10" min="1" inputmode="numeric" oninput="calcPersonal()">
+        </div>
+        <div class="form-group">
+          <label for="personalAsistio">Personal que asistió</label>
+          <input type="number" id="personalAsistio" value="10" min="0" inputmode="numeric" oninput="calcPersonal()">
+        </div>
+        <div class="form-group">
+          <label for="personalPuntual">Personal puntual</label>
+          <input type="number" id="personalPuntual" value="10" min="0" inputmode="numeric" oninput="calcPersonal()">
+        </div>
+      </div>
+      <div style="margin-top:14px;">
+        <label style="font-size:12px; color:#4a5568; font-weight:600;">% Asistencia: <span id="lblAsist">100%</span></label>
+        <div class="progress-bar">
+          <div class="progress-fill" id="barAsist" style="width:100%;">100%</div>
+        </div>
+      </div>
+      <div style="margin-top:12px;">
+        <label style="font-size:12px; color:#4a5568; font-weight:600;">% Puntualidad: <span id="lblPunt">100%</span></label>
+        <div class="progress-bar">
+          <div class="progress-fill" id="barPunt" style="width:100%;">100%</div>
+        </div>
+      </div>
+      <div class="form-group full-width" style="margin-top:14px;">
+        <label for="obsPersonal">Observaciones de desempeño relevantes:</label>
+        <textarea id="obsPersonal" rows="3"></textarea>
+      </div>
+    </div>
+
+    <div class="section green">
+      <h2><span class="icon">📡</span> 05. ESTADO TECNOLÓGICO</h2>
+      <p style="font-size:12px; color:#718096; margin-bottom:4px;">Los equipos de su plantilla ya aparecen como operativos. Solo cambie el estado de los que tengan novedad.</p>
+
+      <div class="equip-head first"><h3>📻 Radios</h3>
+        <button type="button" class="btn btn-secondary btn-small" onclick="saveTemplateFromForm()">💾 Guardar equipos como plantilla</button></div>
+      <div id="radiosList"></div>
+      <button type="button" class="add-btn" onclick="addEquip('radios')">+ Agregar Radio</button>
+
+      <div class="equip-head"><h3>🚧 Torniquetes</h3></div>
+      <div id="torniquetesList"></div>
+      <button type="button" class="add-btn" onclick="addEquip('torniquetes')">+ Agregar Torniquete</button>
+
+      <div class="equip-head"><h3>💳 Lectoras</h3></div>
+      <div id="lectorasList"></div>
+      <button type="button" class="add-btn" onclick="addEquip('lectoras')">+ Agregar Lectora</button>
+
+      <div class="equip-head"><h3>🚪 Puertas de IDF's</h3></div>
+      <div id="puertasList"></div>
+      <button type="button" class="add-btn" onclick="addEquip('puertas')">+ Agregar Puerta IDF</button>
+    </div>
+
+    <div class="section orange">
+      <h2><span class="icon">💡</span> 06. RECOMENDACIONES DEL JEFE</h2>
+      <div class="form-group">
+        <label for="recomendaciones">Propuestas específicas para mejorar protocolos, cobertura o atender vulnerabilidades:</label>
+        <textarea id="recomendaciones" rows="4"></textarea>
+      </div>
+    </div>
+
+    <div class="button-row">
+      <button type="button" class="btn btn-success btn-save-desktop" onclick="saveReport()">💾 Guardar y abrir nuevo folio</button>
+      <button type="button" class="btn btn-primary" onclick="showTab(1)">📊 Ver Dashboard</button>
+      <button type="button" class="btn btn-warning" onclick="showTab(3)">📄 Generar PDF</button>
+      <button type="button" class="btn btn-secondary" onclick="resetForm()">🔄 Limpiar formulario</button>
+    </div>
+    <div class="mobile-save"><button type="button" class="btn btn-success" onclick="saveReport()">💾 Guardar y abrir nuevo folio</button></div>
+  </div>
+
+  <!-- TAB 2: DASHBOARD / CHARTS -->
+  <div class="tab-content" id="tab-dash">
+    <div class="period-bar">
+      <div class="seg" role="group" aria-label="Periodo a visualizar">
+        <button type="button" data-mode="turno" class="active" onclick="setScope('turno')">Turno actual</button>
+        <button type="button" data-mode="semana" onclick="setScope('semana')">Semana</button>
+        <button type="button" data-mode="quincena" onclick="setScope('quincena')">Quincena</button>
+        <button type="button" data-mode="mes" onclick="setScope('mes')">Mes</button>
+      </div>
+      <div class="nav-arrows" id="navArrows" style="display:none;">
+        <button type="button" id="btnPrev" onclick="shiftScope(-1)" aria-label="Periodo anterior">◀</button>
+        <span id="periodLabel"></span>
+        <button type="button" id="btnNext" onclick="shiftScope(1)" aria-label="Periodo siguiente">▶</button>
+      </div>
+      <div class="filters" id="scopeFilters" style="display:none;">
+        <select id="fInstalacion" onchange="onFilter()" aria-label="Filtrar por instalación"><option value="">Todas las instalaciones</option></select>
+        <select id="fTurno" onchange="onFilter()" aria-label="Filtrar por turno">
+          <option value="">Todos los turnos</option>
+          <option value="Matutino">Matutino</option>
+          <option value="Vespertino">Vespertino</option>
+          <option value="Nocturno">Nocturno</option>
+        </select>
+        <label class="chk"><input type="checkbox" id="fDraft" checked onchange="onFilter()"> Incluir turno en captura</label>
+      </div>
+      <div class="live" id="livePill">En vivo</div>
+    </div>
+
+    <div class="kpi-row">
+      <div class="kpi-card" id="kpiReportesCard" style="display:none;">
+        <div class="icon">🗂️</div>
+        <div class="value" id="kpiReportes">0</div>
+        <div class="label">Reportes del periodo</div>
+      </div>
+      <div class="kpi-card">
+        <div class="icon">🚪</div>
+        <div class="value" id="kpiTotalAccesos">0</div>
+        <div class="label">Total Accesos</div>
+      </div>
+      <div class="kpi-card red">
+        <div class="icon">🚫</div>
+        <div class="value" id="kpiDenegados">0</div>
+        <div class="label">Accesos Denegados</div>
+      </div>
+      <div class="kpi-card orange">
+        <div class="icon">🚨</div>
+        <div class="value" id="kpiIncidentes">0</div>
+        <div class="label">Incidentes</div>
+      </div>
+      <div class="kpi-card green">
+        <div class="icon">👥</div>
+        <div class="value" id="kpiAsistencia">0%</div>
+        <div class="label">Asistencia Personal</div>
+      </div>
+      <div class="kpi-card purple">
+        <div class="icon">📡</div>
+        <div class="value" id="kpiEquipos">0</div>
+        <div class="label" id="kpiEquiposLbl">Equipos Monitoreados</div>
+      </div>
+      <div class="kpi-card teal">
+        <div class="icon">🛠️</div>
+        <div class="value" id="kpiFallas">0</div>
+        <div class="label">Equipos con falla</div>
+      </div>
+    </div>
+
+    <div class="charts-grid">
+      <div class="chart-card" id="cardTendencia" style="display:none;">
+        <h3>📈 Tendencia de accesos por día</h3>
+        <div class="chart-container"><canvas id="chartTendencia"></canvas></div>
+      </div>
+      <div class="chart-card" id="cardAsistTend" style="display:none;">
+        <h3>👥 Asistencia y puntualidad por día</h3>
+        <div class="chart-container"><canvas id="chartAsistTend"></canvas></div>
+      </div>
+      <div class="chart-card">
+        <h3>📊 Distribución de Accesos</h3>
+        <div class="chart-container"><canvas id="chartAccesos"></canvas></div>
+      </div>
+      <div class="chart-card">
+        <h3>📈 Accesos por Categoría (Barras)</h3>
+        <div class="chart-container"><canvas id="chartAccesosBar"></canvas></div>
+      </div>
+      <div class="chart-card">
+        <h3>👥 Estado del Personal</h3>
+        <div class="chart-container"><canvas id="chartPersonal"></canvas></div>
+      </div>
+      <div class="chart-card">
+        <h3>📡 Estado Tecnológico</h3>
+        <div class="chart-container"><canvas id="chartTecnologico"></canvas></div>
+      </div>
+      <div class="chart-card">
+        <h3>🚨 Incidentes por Nivel de Alerta</h3>
+        <div class="chart-container"><canvas id="chartIncidentes"></canvas></div>
+      </div>
+      <div class="chart-card">
+        <h3>🎯 Radar del Servicio</h3>
+        <div class="chart-container"><canvas id="chartRadar"></canvas></div>
+      </div>
+    </div>
+
+    <div class="footer-info">
+      <h3 style="color:#1e3a5f; margin-bottom:10px;" id="resumenTitulo">📋 Resumen del Turno Actual</h3>
+      <div id="resumenContent" style="font-size:14px; line-height:1.7;"></div>
+    </div>
+
+    <div class="button-row">
+      <button type="button" class="btn btn-primary" onclick="updateDashboard()">🔄 Actualizar Gráficas</button>
+      <button type="button" class="btn btn-success" id="btnExportPeriodo" onclick="exportPeriodo()" style="display:none;">📊 Exportar periodo a Excel</button>
+      <button type="button" class="btn btn-warning" onclick="showTab(3)">📄 Generar Informe PDF</button>
+    </div>
+  </div>
+
+  <!-- TAB 3: SEARCH REPORTS -->
+  <div class="tab-content" id="tab-search">
+    <div class="section">
+      <h2><span class="icon">🔍</span> BUSCAR INFORMES GUARDADOS</h2>
+      <div class="search-bar">
+        <input type="text" id="searchInput" placeholder="Buscar por folio, instalación, jefe, fecha..." oninput="renderReportTable()">
+        <button type="button" class="btn btn-success" onclick="exportToExcel()">📊 Exportar todo a Excel</button>
+        <button type="button" class="btn btn-primary" onclick="importFromExcel()">📥 Importar Excel</button>
+        <button type="button" class="btn btn-secondary" onclick="syncNow(true)">☁️ Sincronizar ahora</button>
+        <input type="file" id="importFile" accept=".xlsx,.xls" style="display:none;" onchange="handleImport(event)">
+      </div>
+      <div id="tableContainer"></div>
+    </div>
+  </div>
+
+  <!-- TAB 4: PDF EXPORT -->
+  <div class="tab-content" id="tab-pdf">
+    <div class="section">
+      <h2><span class="icon">📄</span> GENERAR INFORME PDF</h2>
+      <p style="margin-bottom:18px; color:#4a5568;">
+        El sistema generará un documento PDF profesional con toda la información del reporte actual, gráficas y tablas detalladas.
+      </p>
+      <div class="form-row">
+        <div class="form-group">
+          <label for="incluirGraficas">Incluir gráficas en el PDF</label>
+          <select id="incluirGraficas">
+            <option value="si">Sí - PDF completo con gráficas</option>
+            <option value="no">No - Solo formato oficial</option>
+          </select>
+        </div>
+        <div class="form-group">
+          <label for="orientacion">Orientación</label>
+          <select id="orientacion">
+            <option value="portrait">Vertical (Portrait)</option>
+            <option value="landscape">Horizontal (Landscape)</option>
+          </select>
+        </div>
+      </div>
+      <div class="button-row">
+        <button type="button" class="btn btn-success" onclick="generarPDF()">📥 Generar PDF del reporte actual</button>
+        <button type="button" class="btn btn-warning" onclick="window.print()">🖨️ Imprimir</button>
+      </div>
+      <div id="pdfStatus" style="margin-top:18px; padding:14px; border-radius:8px; display:none;"></div>
+    </div>
+
+    <div class="section">
+      <h2><span class="icon">👁️</span> VISTA PREVIA</h2>
+      <div id="previewContent" style="background:white; padding:24px; border:1px solid #e2e8f0; border-radius:8px; overflow-x:auto;">
+        <p style="color:#a0aec0; text-align:center;">Haz click en "Actualizar Vista Previa" para generar una previsualización del informe.</p>
+      </div>
+      <button type="button" class="btn btn-primary" onclick="updatePreview()" style="margin-top:14px;">🔍 Actualizar Vista Previa</button>
+    </div>
+  </div>
+</div>
+
+<!-- MODAL DE SINCRONIZACIÓN EN LA NUBE -->
+<div class="modal-bg" id="syncModal" onclick="if(event.target===this)closeSyncModal()">
+  <div class="modal" role="dialog" aria-modal="true" aria-labelledby="syncTitle">
+    <h2 id="syncTitle">☁️ Sincronización en la nube</h2>
+    <p class="sub">Los reportes se guardan en una hoja de Google Sheets de tu cuenta. Así los ves desde cualquier equipo o celular y siguen disponibles aunque borres el navegador. Sin configurar, todo se guarda solo en este equipo.</p>
+    <div class="form-group">
+      <label for="syncUrl">URL de la aplicación web (Google Apps Script)</label>
+      <input type="url" id="syncUrl" placeholder="https://script.google.com/macros/s/.../exec" autocomplete="off">
+    </div>
+    <div class="form-group">
+      <label for="syncToken">Token de acceso</label>
+      <input type="password" id="syncToken" placeholder="El mismo que pusiste en Code.gs" autocomplete="off">
+    </div>
+    <div class="form-group">
+      <label for="syncInterval">Actualizar automáticamente</label>
+      <select id="syncInterval">
+        <option value="15">Cada 15 segundos</option>
+        <option value="30" selected>Cada 30 segundos</option>
+        <option value="60">Cada minuto</option>
+        <option value="0">Solo manual</option>
+      </select>
+    </div>
+    <div class="status" id="syncStatus"></div>
+    <div class="note">Cualquier persona con la URL y el token puede leer y escribir los reportes. No los compartas por canales abiertos y confirma que la política de tu empresa permite guardar estos datos en una cuenta de Google.</div>
+    <div class="button-row" style="margin-top:12px;">
+      <button type="button" class="btn btn-primary btn-small" onclick="testSync()">🔌 Probar conexión</button>
+      <button type="button" class="btn btn-success btn-small" onclick="saveSyncConfig()">💾 Guardar y sincronizar</button>
+      <button type="button" class="btn btn-secondary btn-small" onclick="copyConfigLink()">🔗 Copiar enlace para otro equipo</button>
+      <button type="button" class="btn btn-danger btn-small" onclick="disableSync()">Desactivar</button>
+      <button type="button" class="btn btn-secondary btn-small" onclick="closeSyncModal()">Cerrar</button>
+    </div>
+  </div>
+</div>
+
+<div id="toast" class="toast" role="status" aria-live="polite"></div>
+
+<script>
+// ==== UTILIDADES ====
+const $ = id => document.getElementById(id);
+const pad = n => String(n).padStart(2, '0');
+const dkey = d => `${d.getFullYear()}-${pad(d.getMonth()+1)}-${pad(d.getDate())}`;
+const hhmm = d => `${pad(d.getHours())}:${pad(d.getMinutes())}`;
+const clone = x => JSON.parse(JSON.stringify(x));
+const esc = s => String(s ?? '').replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+function load(key, def) { try { const v = localStorage.getItem(key); return v ? JSON.parse(v) : def; } catch (e) { return def; } }
+function store(key, v) {
+  try { localStorage.setItem(key, JSON.stringify(v)); return true; }
+  catch (e) { showToast('⚠️ No se pudo guardar en este equipo (almacenamiento lleno)', 'warning'); return false; }
+}
+function val(id, v) { const el = $(id); if (el) el.value = v; }
+function getValue(id) { const el = $(id); return el ? el.value : ''; }
+function getNum(id) { return Number(getValue(id)) || 0; }
+
+// ==== CONSTANTES ====
+const STORAGE_KEY = 'dashboardReporteTurno_DB';
+const CFG_KEY = 'dashboardReporteTurno_Config';
+const PENDING_KEY = 'dashboardReporteTurno_Pending';
+const SINCE_KEY = 'dashboardReporteTurno_Since';
+const PROFILE_KEY = 'dashboardReporteTurno_Profile';
+const TEMPLATE_KEY = 'dashboardReporteTurno_Plantilla';
+const DRAFT_KEY = 'dashboardReporteTurno_Draft';
+
+const MES_LARGO = ['Enero','Febrero','Marzo','Abril','Mayo','Junio','Julio','Agosto','Septiembre','Octubre','Noviembre','Diciembre'];
+const MES_CORTO = ['ene','feb','mar','abr','may','jun','jul','ago','sep','oct','nov','dic'];
+const DIAS = ['Dom','Lun','Mar','Mié','Jue','Vie','Sáb'];
+
+const ACCESS = [
+  { key:'visitante',      label:'Visitante',        short:'Visitante',       icon:'👤', color:'#3182ce', counts:true },
+  { key:'sinGafete',      label:'Empl. sin gafete', short:'Sin gafete',      icon:'⚠️', color:'#805ad5', counts:true },
+  { key:'contratista',    label:'Contratista',      short:'Contratista',     icon:'🛠️', color:'#dd6b20', counts:true },
+  { key:'eom',            label:'EOM',              short:'EOM',             icon:'🔧', color:'#2c5282', counts:true },
+  { key:'nuevosIngresos', label:'Nuevos Ingresos',  short:'Nuevos Ingresos', icon:'🆕', color:'#38a169', counts:true },
+  { key:'proveedores',    label:'Proveedores',      short:'Proveedores',     icon:'📦', color:'#319795', counts:true },
+  { key:'denegados',      label:'Denegados',        short:'Denegados',       icon:'🚫', color:'#e53e3e', counts:false },
+  { key:'autoridades',    label:'Autoridades',      short:'Autoridades',     icon:'👮', color:'#553c9a', counts:true },
+  { key:'vip',            label:'VIP',              short:'VIP',             icon:'⭐', color:'#d69e2e', counts:true }
+];
+
+const EQUIP = {
+  radios:       { f:['nombre','posicion'],  ph:['Nombre del radio','Posición / Asignación'], def:'Operativo',
+                  states:[['Operativo','✅ Operativo'],['Falla','❌ Con falla'],['Sin batería','🔋 Sin batería']] },
+  torniquetes:  { f:['nombre','ubicacion'], ph:['Identificador','Ubicación'], def:'Operativo',
+                  states:[['Operativo','✅ Operativo'],['Falla','❌ Con falla'],['Mantenimiento','🛠️ Mantenimiento']] },
+  lectoras:     { f:['nombre','serie'],     ph:['Nombre / Ubicación','Número de serie'], def:'Operativo',
+                  states:[['Operativo','✅ Operativo'],['Falla','❌ Con falla'],['Mantenimiento','🛠️ Mantenimiento']] },
+  puertas:      { f:['nombre','ubicacion'], ph:['Identificador IDF','Ubicación'], def:'Cerrada',
+                  states:[['Cerrada','🔒 Cerrada'],['Abierta','🔓 Abierta'],['Falla','❌ Con falla']] }
+};
+const EQUIP_KEYS = Object.keys(EQUIP);
+const NIVELES = ['Verde','Amarillo','Naranja','Rojo'];
+
+// ==== ESTADO ====
+let database = load(STORAGE_KEY, []);
+let cfg = load(CFG_KEY, {});
+let profile = load(PROFILE_KEY, {});
+let template = load(TEMPLATE_KEY, null);
+let incidentes = [];
+let equipo = { radios: [], torniquetes: [], lectoras: [], puertas: [] };
+const scope = { mode: 'turno', offset: 0, instalacion: '', turno: '', draft: true };
+const charts = {};
+let dashDirty = true, dashTimer = null, draftTimer = null;
+let syncState = 'idle', syncError = '', lastSync = 0, syncing = false, pollTimer = null;
+
+const ts = r => Date.parse(r.updatedAt || r.timestamp || 0) || 0;
+const activeReports = () => database.filter(r => !r.deleted);
+const filled = x => Object.keys(x).some(k => k !== 'estado' && x[k]);
+function persistDB() { return store(STORAGE_KEY, database); }
+function getPending() { return load(PENDING_KEY, []); }
+function setPending(a) { store(PENDING_KEY, [...new Set(a)]); }
+function addPending(folio) { setPending([...getPending(), folio]); }
+
+// ==== INICIO ====
+window.addEventListener('load', () => {
+  applyHashConfig();
+  buildStats();
+  const draft = load(DRAFT_KEY, null);
+  if (draft && draft.folio && !database.some(r => r.folio === draft.folio)) {
+    fillForm(draft);
+    val('folio', draft.folio);
+    $('folioDisplay').textContent = 'Folio: ' + draft.folio;
+    showToast('📝 Borrador anterior recuperado');
+  } else {
+    initNewForm();
+  }
+  populateDatalists();
+  renderReportTable();
+  syncScopeUI();
+  updateSyncChip();
+  restartPoll();
+  setInterval(updateSyncChip, 10000);
+  if (cfg.url) syncNow();
+  if ('serviceWorker' in navigator && location.protocol.indexOf('http') === 0) {
+    navigator.serviceWorker.register('sw.js').catch(() => {});
+  }
+  $('tab-form').addEventListener('input', saveDraftSoon);
+  $('tab-form').addEventListener('change', saveDraftSoon);
+});
+document.addEventListener('visibilitychange', () => { if (!document.hidden && cfg.url) syncNow(); });
+window.addEventListener('online', () => { if (cfg.url) syncNow(); });
+document.addEventListener('click', e => {
+  const b = e.target.closest('.step');
+  if (!b) return;
+  const inp = $(b.dataset.t);
+  inp.value = Math.max(0, (Number(inp.value) || 0) + Number(b.dataset.d));
+  inp.dispatchEvent(new Event('input', { bubbles: true }));
+});
+document.addEventListener('focusin', e => { if (e.target.matches && e.target.matches('input[type=number]')) e.target.select(); });
+
+function showTab(idx) {
+  document.querySelectorAll('.tab').forEach((t, i) => t.classList.toggle('active', i === idx));
+  document.querySelectorAll('.tab-content').forEach((c, i) => c.classList.toggle('active', i === idx));
+  if (idx === 1) setTimeout(updateDashboard, 100);
+  if (idx === 2) renderReportTable();
+  if (idx === 3) updatePreview();
+  window.scrollTo({ top: 0, behavior: 'auto' });
+}
+
+function autoTurno() {
+  const h = new Date().getHours();
+  return h >= 6 && h < 14 ? 'Matutino' : h >= 14 && h < 22 ? 'Vespertino' : 'Nocturno';
+}
+
+function newFolio() {
+  const d = new Date();
+  const rnd = Math.random().toString(36).slice(2, 5).toUpperCase();
+  return `RT-${d.getFullYear()}${pad(d.getMonth()+1)}${pad(d.getDate())}-${pad(d.getHours())}${pad(d.getMinutes())}-${rnd}`;
+}
+function generateFolio() {
+  let f = newFolio();
+  while (database.some(r => r.folio === f)) f = newFolio();
+  val('folio', f);
+  $('folioDisplay').textContent = 'Folio: ' + f;
+}
+
+function buildStats() {
+  $('statsGrid').innerHTML = ACCESS.map(f => `
+    <div class="stat-box" style="--accent:${f.color};">
+      <div class="stat-icon">${f.icon}</div>
+      <label for="${f.key}">${f.label}</label>
+      <div class="stepper">
+        <button type="button" class="step" data-t="${f.key}" data-d="-1" aria-label="Restar ${f.label}">−</button>
+        <input type="number" id="${f.key}" value="0" min="0" inputmode="numeric" oninput="updateKPIs()">
+        <button type="button" class="step" data-t="${f.key}" data-d="1" aria-label="Sumar ${f.label}">+</button>
+      </div>
+    </div>`).join('');
+}
+
+// ==== FORMULARIO NUEVO / BORRADOR ====
+function initNewForm() {
+  const now = new Date();
+  ['resumen','obsPersonal','recomendaciones'].forEach(id => val(id, ''));
+  ACCESS.forEach(f => val(f.key, 0));
+  val('fecha', dkey(now));
+  val('hora', hhmm(now));
+  val('turno', autoTurno());
+  val('instalacion', profile.instalacion || '');
+  val('jefe', profile.jefe || '');
+  const p = profile.plantillaTotal || 10;
+  val('plantillaTotal', p); val('personalAsistio', p); val('personalPuntual', p);
+  incidentes = [];
+  renderIncidents();
+  applyTemplate();
+  generateFolio();
+  localStorage.removeItem(DRAFT_KEY);
+  calcPersonal();
+}
+
+function saveDraftSoon() {
+  clearTimeout(draftTimer);
+  draftTimer = setTimeout(() => {
+    try { localStorage.setItem(DRAFT_KEY, JSON.stringify(getCurrentReport(false))); } catch (e) {}
+  }, 600);
+}
+
+function resetForm() {
+  if (!confirm('¿Limpiar el formulario y empezar de nuevo?')) return;
+  initNewForm();
+  showToast('🔄 Formulario limpio');
+}
+
+// ==== LISTAS DINÁMICAS ====
+function addIncident() { incidentes.push({ folio:'', descripcion:'', nivel:'Verde' }); renderIncidents(); }
+function removeIncident(i) { incidentes.splice(i, 1); renderIncidents(); updateKPIs(); saveDraftSoon(); }
+function renderIncidents() {
+  const list = $('incidentsList');
+  if (!incidentes.length) { list.innerHTML = '<div class="list-hint">Sin incidentes registrados en este turno.</div>'; return; }
+  list.innerHTML = '';
+  incidentes.forEach((inc, i) => {
+    const div = document.createElement('div');
+    div.className = 'dynamic-item cols-3';
+    div.innerHTML = `
+      <input type="text" placeholder="Folio F-REPORTE" value="${esc(inc.folio)}" oninput="incidentes[${i}].folio=this.value; updateKPIs();">
+      <input type="text" placeholder="Descripción" value="${esc(inc.descripcion)}" oninput="incidentes[${i}].descripcion=this.value; updateKPIs();">
+      <select onchange="incidentes[${i}].nivel=this.value; updateKPIs();">
+        <option value="Verde" ${inc.nivel==='Verde'?'selected':''}>🟢 Verde</option>
+        <option value="Amarillo" ${inc.nivel==='Amarillo'?'selected':''}>🟡 Amarillo</option>
+        <option value="Naranja" ${inc.nivel==='Naranja'?'selected':''}>🟠 Naranja</option>
+        <option value="Rojo" ${inc.nivel==='Rojo'?'selected':''}>🔴 Rojo</option>
+      </select>
+      <button type="button" class="remove-btn" onclick="removeIncident(${i})" aria-label="Quitar incidente">×</button>`;
+    list.appendChild(div);
+  });
+}
+
+function blankEquip(k) {
+  const o = {}; EQUIP[k].f.forEach(f => o[f] = ''); o.estado = EQUIP[k].def; return o;
+}
+function addEquip(k) { equipo[k].push(blankEquip(k)); renderEquip(k); }
+function removeEquip(k, i) { equipo[k].splice(i, 1); renderEquip(k); updateKPIs(); saveDraftSoon(); }
+function renderEquip(k) {
+  const cfgE = EQUIP[k], list = $(k + 'List');
+  if (!equipo[k].length) { list.innerHTML = '<div class="list-hint">Sin equipos registrados.</div>'; return; }
+  list.innerHTML = '';
+  equipo[k].forEach((x, i) => {
+    const div = document.createElement('div');
+    div.className = 'dynamic-item cols-3';
+    div.innerHTML = `
+      <input type="text" placeholder="${esc(cfgE.ph[0])}" value="${esc(x[cfgE.f[0]])}" oninput="equipo.${k}[${i}].${cfgE.f[0]}=this.value; updateKPIs();">
+      <input type="text" placeholder="${esc(cfgE.ph[1])}" value="${esc(x[cfgE.f[1]])}" oninput="equipo.${k}[${i}].${cfgE.f[1]}=this.value">
+      <select onchange="equipo.${k}[${i}].estado=this.value; updateKPIs();">
+        ${cfgE.states.map(s => `<option value="${esc(s[0])}" ${x.estado===s[0]?'selected':''}>${s[1]}</option>`).join('')}
+      </select>
+      <button type="button" class="remove-btn" onclick="removeEquip('${k}',${i})" aria-label="Quitar equipo">×</button>`;
+    list.appendChild(div);
+  });
+}
+
+function applyTemplate() {
+  EQUIP_KEYS.forEach(k => {
+    const src = (template && template[k]) || [];
+    equipo[k] = src.map(x => Object.assign({}, x, { estado: EQUIP[k].def }));
+    if (!equipo[k].length) equipo[k].push(blankEquip(k));
+    renderEquip(k);
+  });
+}
+function saveTemplateFromForm(silent) {
+  const t = {};
+  EQUIP_KEYS.forEach(k => {
+    t[k] = equipo[k].filter(filled).map(x => { const o = {}; EQUIP[k].f.forEach(f => o[f] = x[f] || ''); return o; });
+  });
+  template = t;
+  store(TEMPLATE_KEY, t);
+  if (!silent) showToast('💾 Plantilla de equipos guardada: aparecerá en cada reporte nuevo');
+}
+
+// ==== PERSONAL ====
+function calcPersonal() {
+  const plantilla = getNum('plantillaTotal') || 1;
+  let asist = getNum('personalAsistio');
+  let punt = getNum('personalPuntual');
+  if (asist > plantilla) { asist = plantilla; val('personalAsistio', plantilla); }
+  if (punt > asist) { punt = asist; val('personalPuntual', asist); }
+  const pAsist = Math.round((asist / plantilla) * 100);
+  const pPunt = asist > 0 ? Math.round((punt / asist) * 100) : 0;
+  $('lblAsist').textContent = pAsist + '%';
+  $('lblPunt').textContent = pPunt + '%';
+  const barA = $('barAsist'), barP = $('barPunt');
+  barA.style.width = pAsist + '%'; barA.textContent = pAsist + '%';
+  barP.style.width = pPunt + '%'; barP.textContent = pPunt + '%';
+  barA.className = 'progress-fill ' + (pAsist >= 90 ? '' : pAsist >= 70 ? 'warning' : 'danger');
+  barP.className = 'progress-fill ' + (pPunt >= 90 ? '' : pPunt >= 70 ? 'warning' : 'danger');
+  updateKPIs();
+}
+
+// ==== INFORME ACTUAL (FORMULARIO) ====
+function getCurrentReport(clean) {
+  const o = {
+    folio: getValue('folio'),
+    instalacion: getValue('instalacion').trim(),
+    turno: getValue('turno'),
+    fecha: getValue('fecha'),
+    hora: getValue('hora'),
+    jefe: getValue('jefe').trim(),
+    resumen: getValue('resumen'),
+    plantillaTotal: getNum('plantillaTotal'),
+    personalAsistio: getNum('personalAsistio'),
+    personalPuntual: getNum('personalPuntual'),
+    obsPersonal: getValue('obsPersonal'),
+    recomendaciones: getValue('recomendaciones'),
+    timestamp: new Date().toISOString()
+  };
+  ACCESS.forEach(f => o[f.key] = getNum(f.key));
+  o.incidentes = clone(clean ? incidentes.filter(i => i.folio || i.descripcion) : incidentes);
+  EQUIP_KEYS.forEach(k => o[k] = clone(clean ? equipo[k].filter(filled) : equipo[k]));
+  return o;
+}
+
+function fillForm(r) {
+  ['instalacion','turno','fecha','hora','jefe','resumen','obsPersonal','recomendaciones'].forEach(k => val(k, r[k] ?? ''));
+  ACCESS.forEach(f => val(f.key, Number(r[f.key]) || 0));
+  val('plantillaTotal', r.plantillaTotal ?? 10);
+  val('personalAsistio', r.personalAsistio ?? 10);
+  val('personalPuntual', r.personalPuntual ?? 10);
+  incidentes = clone(r.incidentes || []);
+  EQUIP_KEYS.forEach(k => { equipo[k] = clone(r[k] || []); renderEquip(k); });
+  renderIncidents();
+  calcPersonal();
+}
+
+function genResumen() {
+  const r = getCurrentReport(true);
+  const m = metrics(r);
+  if (getValue('resumen').trim() && !confirm('Ya hay texto en el resumen. ¿Reemplazarlo por el borrador automático?')) return;
+  const pAsist = m.plantilla ? Math.round(m.asistio / m.plantilla * 100) : 0;
+  const pPunt = m.asistio ? Math.round(m.puntual / m.asistio * 100) : 0;
+  const fallas = [];
+  EQUIP_KEYS.forEach(k => r[k].forEach(x => { if (x.estado !== EQUIP[k].def && x.estado !== 'Cerrada' && x.estado !== 'Operativo') fallas.push(`${x.nombre || k} (${x.estado})`); }));
+  const partes = [];
+  partes.push(`Turno ${r.turno.toLowerCase()}${r.instalacion ? ' en ' + r.instalacion : ''}: ${m.total} accesos registrados${m.denegados ? ' y ' + m.denegados + ' denegados' : ''}.`);
+  if (m.incs.length) {
+    const niv = NIVELES.filter(n => m.niv[n]).map(n => `${m.niv[n]} ${n.toLowerCase()}`).join(', ');
+    partes.push(`Se documentaron ${m.incs.length} incidente${m.incs.length > 1 ? 's' : ''} (${niv}).`);
+  } else partes.push('Sin incidentes documentados.');
+  partes.push(`Asistencia de personal ${pAsist}% y puntualidad ${pPunt}%.`);
+  partes.push(fallas.length ? `Equipos con novedad: ${fallas.join(', ')}.` : 'Equipos operando sin novedad.');
+  val('resumen', partes.join(' '));
+  saveDraftSoon();
+  showToast('✨ Borrador generado: revísalo y ajústalo');
+}
+
+// ==== MÉTRICAS ====
+function metrics(r) {
+  const acc = {};
+  ACCESS.forEach(f => acc[f.key] = Number(r[f.key]) || 0);
+  const total = ACCESS.reduce((s, f) => s + (f.counts ? acc[f.key] : 0), 0);
+  const incs = (r.incidentes || []).filter(i => i.folio || i.descripcion);
+  const niv = { Verde:0, Amarillo:0, Naranja:0, Rojo:0 };
+  incs.forEach(i => { niv[i.nivel] = (niv[i.nivel] || 0) + 1; });
+  const tec = { Operativo:0, Falla:0, Otro:0 };
+  let eq = 0;
+  ['radios','torniquetes','lectoras'].forEach(k => (r[k] || []).filter(filled).forEach(x => {
+    eq++;
+    if (x.estado === 'Operativo') tec.Operativo++; else if (x.estado === 'Falla') tec.Falla++; else tec.Otro++;
+  }));
+  (r.puertas || []).filter(filled).forEach(p => { eq++; if (p.estado === 'Falla') tec.Falla++; else tec.Operativo++; });
+  return { acc, total, denegados: acc.denegados, incs, niv, tec, eq,
+    plantilla: Number(r.plantillaTotal) || 0, asistio: Number(r.personalAsistio) || 0, puntual: Number(r.personalPuntual) || 0 };
+}
+
+function aggregate(list) {
+  const A = { n: list.length, acc: {}, total: 0, denegados: 0, inc: 0, niv: { Verde:0, Amarillo:0, Naranja:0, Rojo:0 },
+    tec: { Operativo:0, Falla:0, Otro:0 }, eq: 0, plantilla: 0, asistio: 0, puntual: 0 };
+  ACCESS.forEach(f => A.acc[f.key] = 0);
+  list.forEach(r => {
+    const m = metrics(r);
+    ACCESS.forEach(f => A.acc[f.key] += m.acc[f.key]);
+    A.total += m.total; A.denegados += m.denegados; A.inc += m.incs.length; A.eq += m.eq;
+    NIVELES.forEach(n => A.niv[n] += (m.niv[n] || 0));
+    A.tec.Operativo += m.tec.Operativo; A.tec.Falla += m.tec.Falla; A.tec.Otro += m.tec.Otro;
+    A.plantilla += m.plantilla; A.asistio += m.asistio; A.puntual += m.puntual;
+  });
+  A.pAsist = A.plantilla ? Math.round(A.asistio / A.plantilla * 100) : 0;
+  A.pPunt = A.asistio ? Math.round(A.puntual / A.asistio * 100) : 0;
+  const tecTotal = A.tec.Operativo + A.tec.Falla + A.tec.Otro || 1;
+  A.pTec = Math.round(A.tec.Operativo / tecTotal * 100);
+  const n = Math.max(1, A.n);
+  A.pInc = Math.max(0, Math.round(100 - (A.inc / n) * 10));
+  A.pAcc = Math.min(100, Math.round((A.total / n) / 2));
+  return A;
+}
+
+// ==== PERIODOS ====
+function getRange(mode, offset) {
+  const t = new Date(); t.setHours(0, 0, 0, 0);
+  let s, e, label;
+  const f = d => `${d.getDate()} ${MES_CORTO[d.getMonth()]}`;
+  if (mode === 'semana') {
+    const dow = (t.getDay() + 6) % 7;
+    s = new Date(t); s.setDate(t.getDate() - dow + offset * 7);
+    e = new Date(s); e.setDate(s.getDate() + 6);
+    label = `Semana · ${f(s)} – ${f(e)} ${e.getFullYear()}`;
+  } else if (mode === 'quincena') {
+    const idx = t.getFullYear() * 24 + t.getMonth() * 2 + (t.getDate() <= 15 ? 0 : 1) + offset;
+    const y = Math.floor(idx / 24), rem = idx - y * 24, m = Math.floor(rem / 2), half = rem % 2;
+    s = new Date(y, m, half ? 16 : 1);
+    e = half ? new Date(y, m + 1, 0) : new Date(y, m, 15);
+    label = `${half ? '2ª' : '1ª'} quincena · ${MES_LARGO[m]} ${y}`;
+  } else {
+    s = new Date(t.getFullYear(), t.getMonth() + offset, 1);
+    e = new Date(t.getFullYear(), t.getMonth() + offset + 1, 0);
+    label = `${MES_LARGO[s.getMonth()]} ${s.getFullYear()}`;
+  }
+  return { s, e, label, start: dkey(s), end: dkey(e) };
+}
+
+function setScope(mode) {
+  scope.mode = mode; scope.offset = 0;
+  syncScopeUI();
+  updateDashboard();
+}
+function shiftScope(d) {
+  if (scope.offset + d > 0) return;
+  scope.offset += d;
+  syncScopeUI();
+  updateDashboard();
+}
+function onFilter() {
+  scope.instalacion = $('fInstalacion').value;
+  scope.turno = $('fTurno').value;
+  scope.draft = $('fDraft').checked;
+  updateDashboard();
+}
+function syncScopeUI() {
+  document.querySelectorAll('.seg button').forEach(b => b.classList.toggle('active', b.dataset.mode === scope.mode));
+  const periodic = scope.mode !== 'turno';
+  $('navArrows').style.display = periodic ? 'flex' : 'none';
+  $('scopeFilters').style.display = periodic ? 'flex' : 'none';
+  $('btnExportPeriodo').style.display = periodic ? 'inline-flex' : 'none';
+  $('kpiReportesCard').style.display = periodic ? '' : 'none';
+  if (periodic) {
+    $('periodLabel').textContent = getRange(scope.mode, scope.offset).label;
+    $('btnNext').disabled = scope.offset >= 0;
+  }
+}
+
+function draftHasData() {
+  const r = getCurrentReport(true);
+  return ACCESS.some(f => r[f.key] > 0) || r.incidentes.length > 0 || r.resumen.trim() !== '';
+}
+function scopeData() {
+  if (scope.mode === 'turno') return { list: [getCurrentReport(true)], range: null };
+  const range = getRange(scope.mode, scope.offset);
+  const match = r => (!scope.instalacion || r.instalacion === scope.instalacion) && (!scope.turno || r.turno === scope.turno);
+  let list = activeReports().filter(r => String(r.fecha || '') >= range.start && String(r.fecha || '') <= range.end && match(r));
+  if (scope.draft && draftHasData()) {
+    const d = getCurrentReport(true);
+    if (d.fecha >= range.start && d.fecha <= range.end && match(d)) {
+      list = list.filter(r => r.folio !== d.folio);
+      list.push(d);
+    }
+  }
+  return { list, range };
+}
+function dayBuckets(range, list) {
+  const days = [], map = {};
+  for (let d = new Date(range.s); d <= range.e; d.setDate(d.getDate() + 1)) {
+    const o = { k: dkey(d), date: new Date(d), total: 0, den: 0, plant: 0, asist: 0, punt: 0 };
+    days.push(o); map[o.k] = o;
+  }
+  list.forEach(r => {
+    const o = map[r.fecha]; if (!o) return;
+    const m = metrics(r);
+    o.total += m.total; o.den += m.denegados; o.plant += m.plantilla; o.asist += m.asistio; o.punt += m.puntual;
+  });
+  return days;
+}
+
+// ==== DASHBOARD ====
+const dashActive = () => $('tab-dash').classList.contains('active');
+function updateKPIs() {
+  if (!dashActive()) { dashDirty = true; return; }
+  clearTimeout(dashTimer);
+  dashTimer = setTimeout(updateDashboard, 250);
+}
+
+function upsertChart(id, type, data, options) {
+  const el = $(id); if (!el) return;
+  const ex = charts[id];
+  if (ex && ex.config.type === type) {
+    ex.data.labels = data.labels;
+    ex.data.datasets = data.datasets;
+    ex.update();
+    return;
+  }
+  if (ex) ex.destroy();
+  charts[id] = new Chart(el, { type, data, options });
+}
+function dropChart(id) { if (charts[id]) { charts[id].destroy(); delete charts[id]; } }
+
+function populateFilters() {
+  const names = [...new Set(activeReports().map(r => r.instalacion).filter(Boolean))].sort();
+  if (scope.instalacion && !names.includes(scope.instalacion)) scope.instalacion = '';
+  $('fInstalacion').innerHTML = '<option value="">Todas las instalaciones</option>' +
+    names.map(n => `<option value="${esc(n)}"${n === scope.instalacion ? ' selected' : ''}>${esc(n)}</option>`).join('');
+}
+
+function updateDashboard() {
+  if (typeof Chart === 'undefined') { showToast('⚠️ No se pudieron cargar las gráficas (sin internet)', 'warning'); return; }
+  dashDirty = false;
+  populateFilters();
+  syncScopeUI();
+  const { list, range } = scopeData();
+  const A = aggregate(list);
+  const periodic = scope.mode !== 'turno';
+
+  $('kpiReportes').textContent = A.n;
+  $('kpiTotalAccesos').textContent = A.total;
+  $('kpiDenegados').textContent = A.denegados;
+  $('kpiIncidentes').textContent = A.inc;
+  $('kpiAsistencia').textContent = A.pAsist + '%';
+  $('kpiEquipos').textContent = periodic && A.n ? Math.round(A.eq / A.n) : A.eq;
+  $('kpiEquiposLbl').textContent = periodic ? 'Equipos por reporte' : 'Equipos Monitoreados';
+  $('kpiFallas').textContent = A.tec.Falla;
+
+  const keys = ACCESS.map(f => f.short);
+  const values = ACCESS.map(f => A.acc[f.key]);
+  const colors = ACCESS.map(f => f.color);
+
+  $('cardTendencia').style.display = periodic ? '' : 'none';
+  $('cardAsistTend').style.display = periodic ? '' : 'none';
+  if (periodic) {
+    const days = dayBuckets(range, list);
+    const labels = days.map(d => scope.mode === 'semana' ? `${DIAS[d.date.getDay()]} ${d.date.getDate()}` : `${d.date.getDate()} ${MES_CORTO[d.date.getMonth()]}`);
+    upsertChart('chartTendencia', 'bar', {
+      labels,
+      datasets: [
+        { type:'bar', label:'Accesos', data: days.map(d => d.total), backgroundColor:'#2c5282', borderRadius:4, order:2 },
+        { type:'line', label:'Denegados', data: days.map(d => d.den), borderColor:'#e53e3e', backgroundColor:'#e53e3e', tension:0.3, order:1 }
+      ]
+    }, { responsive:true, maintainAspectRatio:false, plugins:{ legend:{ position:'bottom' } }, scales:{ y:{ beginAtZero:true } } });
+    upsertChart('chartAsistTend', 'line', {
+      labels,
+      datasets: [
+        { label:'% Asistencia', data: days.map(d => d.plant ? Math.round(d.asist / d.plant * 100) : null), borderColor:'#38a169', backgroundColor:'#38a169', tension:0.3, spanGaps:true },
+        { label:'% Puntualidad', data: days.map(d => d.asist ? Math.round(d.punt / d.asist * 100) : null), borderColor:'#2c5282', backgroundColor:'#2c5282', tension:0.3, spanGaps:true }
+      ]
+    }, { responsive:true, maintainAspectRatio:false, plugins:{ legend:{ position:'bottom' } }, scales:{ y:{ min:0, max:100 } } });
+  } else {
+    dropChart('chartTendencia'); dropChart('chartAsistTend');
+  }
+
+  upsertChart('chartAccesos', 'doughnut',
+    { labels: keys, datasets: [{ data: values, backgroundColor: colors, borderWidth:2, borderColor:'#fff' }] },
+    { responsive:true, maintainAspectRatio:false, plugins:{ legend:{ position:'bottom', labels:{ font:{ size:10 }, boxWidth:12 } } } });
+  upsertChart('chartAccesosBar', 'bar',
+    { labels: keys, datasets: [{ label:'Cantidad', data: values, backgroundColor: colors, borderRadius:6 }] },
+    { responsive:true, maintainAspectRatio:false, plugins:{ legend:{ display:false } }, scales:{ y:{ beginAtZero:true } } });
+  upsertChart('chartPersonal', 'bar',
+    { labels:['Plantilla','Asistió','Puntual'], datasets:[{ label: periodic ? 'Personas-turno' : 'Personas', data:[A.plantilla, A.asistio, A.puntual], backgroundColor:['#cbd5e0','#38a169','#2c5282'], borderRadius:6 }] },
+    { responsive:true, maintainAspectRatio:false, scales:{ y:{ beginAtZero:true } }, plugins:{ legend:{ display:false } } });
+  upsertChart('chartTecnologico', 'polarArea',
+    { labels:['Operativos','Con falla','Otro estado'], datasets:[{ data:[A.tec.Operativo, A.tec.Falla, A.tec.Otro], backgroundColor:['rgba(56,161,105,0.7)','rgba(229,62,62,0.7)','rgba(214,158,46,0.7)'] }] },
+    { responsive:true, maintainAspectRatio:false, plugins:{ legend:{ position:'bottom' } } });
+  upsertChart('chartIncidentes', 'doughnut',
+    { labels: NIVELES, datasets:[{ data: NIVELES.map(n => A.niv[n]), backgroundColor:['#38a169','#d69e2e','#dd6b20','#e53e3e'], borderWidth:2, borderColor:'#fff' }] },
+    { responsive:true, maintainAspectRatio:false, plugins:{ legend:{ position:'bottom' } } });
+  upsertChart('chartRadar', 'radar',
+    { labels:['Asistencia','Puntualidad','Tecnología','Sin Incidentes','Accesos'],
+      datasets:[{ label:'Indicadores (%)', data:[A.pAsist, A.pPunt, A.pTec, A.pInc, A.pAcc],
+        backgroundColor:'rgba(44,82,130,0.25)', borderColor:'#2c5282', borderWidth:2, pointBackgroundColor:'#d69e2e', pointRadius:5 }] },
+    { responsive:true, maintainAspectRatio:false, scales:{ r:{ beginAtZero:true, max:100 } } });
+
+  renderResumen(list, A, range);
+  $('livePill').textContent = 'En vivo · ' + new Date().toLocaleTimeString('es-MX');
+}
+
+function renderResumen(list, A, range) {
+  if (scope.mode === 'turno') {
+    $('resumenTitulo').textContent = '📋 Resumen del Turno Actual';
+    $('resumenContent').innerHTML = `
+      <p><strong>📍 Instalación:</strong> ${esc(getValue('instalacion')) || '---'}</p>
+      <p><strong>🕐 Turno:</strong> ${esc(getValue('turno'))} · <strong>📅 Fecha:</strong> ${esc(getValue('fecha')) || '---'} · <strong>⏰ Hora:</strong> ${esc(getValue('hora')) || '---'}</p>
+      <p><strong>👤 Jefe de Servicio:</strong> ${esc(getValue('jefe')) || '---'}</p>
+      <p><strong>🎫 Folio:</strong> ${esc(getValue('folio'))}</p>
+      <p style="margin-top:10px;"><strong>📋 Resumen:</strong> ${esc(getValue('resumen')) || 'Sin información'}</p>`;
+    return;
+  }
+  $('resumenTitulo').textContent = '📋 Resumen del periodo: ' + range.label;
+  if (!list.length) {
+    $('resumenContent').innerHTML = '<p>No hay reportes guardados en este periodo con los filtros elegidos.</p>';
+    return;
+  }
+  const insts = [...new Set(list.map(r => r.instalacion).filter(Boolean))];
+  const turnos = {}; list.forEach(r => { turnos[r.turno] = (turnos[r.turno] || 0) + 1; });
+  const incList = [];
+  list.forEach(r => (r.incidentes || []).filter(i => i.folio || i.descripcion).forEach(i => incList.push({ fecha: r.fecha, ...i })));
+  incList.sort((a, b) => String(b.fecha).localeCompare(String(a.fecha)));
+  const nivTxt = NIVELES.filter(n => A.niv[n]).map(n => `${A.niv[n]} ${n}`).join(' · ') || 'sin incidentes';
+  $('resumenContent').innerHTML = `
+    <p><strong>🗂️ Reportes:</strong> ${A.n} · <strong>📍 Instalaciones:</strong> ${esc(insts.join(', ')) || '---'}</p>
+    <p><strong>🕐 Turnos:</strong> ${Object.keys(turnos).map(t => `${esc(t)} ${turnos[t]}`).join(' · ')}</p>
+    <p><strong>🚪 Accesos:</strong> ${A.total} (denegados: ${A.denegados}) · <strong>👥 Asistencia:</strong> ${A.pAsist}% · <strong>Puntualidad:</strong> ${A.pPunt}%</p>
+    <p><strong>🚨 Incidentes:</strong> ${A.inc} (${esc(nivTxt)})</p>
+    ${incList.length ? `<table class="mini-table"><tr><th>Fecha</th><th>Folio</th><th>Descripción</th><th>Nivel</th></tr>
+      ${incList.slice(0, 10).map(i => `<tr><td>${esc(i.fecha)}</td><td>${esc(i.folio || 'S/F')}</td><td>${esc(i.descripcion)}</td><td><span class="alert-badge alert-${esc(String(i.nivel).toLowerCase())}">${esc(i.nivel)}</span></td></tr>`).join('')}
+    </table>${incList.length > 10 ? `<p style="font-size:12px;color:#718096;">Mostrando 10 de ${incList.length} incidentes.</p>` : ''}` : ''}`;
+}
+
+// ==== BASE DE DATOS LOCAL ====
+function remember(r) {
+  profile.instalacion = r.instalacion; profile.jefe = r.jefe; profile.plantillaTotal = r.plantillaTotal;
+  store(PROFILE_KEY, profile);
+}
+function populateDatalists() {
+  const inst = [...new Set([profile.instalacion, ...activeReports().map(r => r.instalacion)].filter(Boolean))];
+  const jefes = [...new Set([profile.jefe, ...activeReports().map(r => r.jefe)].filter(Boolean))];
+  $('dlInstalaciones').innerHTML = inst.map(v => `<option value="${esc(v)}">`).join('');
+  $('dlJefes').innerHTML = jefes.map(v => `<option value="${esc(v)}">`).join('');
+}
+
+function saveReport() {
+  const report = getCurrentReport(true);
+  if (!report.instalacion || !report.jefe) {
+    showToast('⚠️ Captura al menos Instalación y Jefe de Servicio', 'warning');
+    return;
+  }
+  report.updatedAt = new Date().toISOString();
+  report.deleted = false;
+  const i = database.findIndex(r => r.folio === report.folio);
+  if (i >= 0) database[i] = report; else database.push(report);
+  if (!persistDB()) return;
+  addPending(report.folio);
+  remember(report);
+  if (!template) saveTemplateFromForm(true);
+  localStorage.removeItem(DRAFT_KEY);
+  showToast('✅ Reporte ' + report.folio + ' guardado correctamente');
+  refreshAfterDataChange();
+  syncNow();
+  setTimeout(initNewForm, 800);
+}
+
+function refreshAfterDataChange() {
+  populateDatalists();
+  renderReportTable();
+  if (dashActive()) updateDashboard(); else dashDirty = true;
+  updateSyncChip();
+}
+
+function flatRow(r) {
+  const m = metrics(r);
+  const row = {
+    Folio: r.folio, Fecha: r.fecha, Hora: r.hora, Turno: r.turno, Instalacion: r.instalacion, Jefe: r.jefe, Resumen: r.resumen,
+    Visitante: r.visitante, EmpleadoSinGafete: r.sinGafete, Contratista: r.contratista, EOM: r.eom,
+    NuevosIngresos: r.nuevosIngresos, Proveedores: r.proveedores, Denegados: r.denegados, Autoridades: r.autoridades, VIP: r.vip,
+    TotalAccesos: m.total,
+    Incidentes: (r.incidentes || []).map(i => `${i.folio}-${i.descripcion}(${i.nivel})`).join(' | '),
+    PlantillaTotal: r.plantillaTotal, PersonalAsistio: r.personalAsistio, PersonalPuntual: r.personalPuntual,
+    PorcAsistencia: r.plantillaTotal ? Math.round((r.personalAsistio / r.plantillaTotal) * 100) + '%' : '',
+    PorcPuntualidad: r.personalAsistio ? Math.round((r.personalPuntual / r.personalAsistio) * 100) + '%' : '',
+    ObsPersonal: r.obsPersonal,
+    Radios: (r.radios || []).map(x => `${x.nombre}-${x.posicion}(${x.estado})`).join(' | '),
+    Torniquetes: (r.torniquetes || []).map(x => `${x.nombre}-${x.ubicacion}(${x.estado})`).join(' | '),
+    Lectoras: (r.lectoras || []).map(x => `${x.nombre}-${x.serie}(${x.estado})`).join(' | '),
+    PuertasIDF: (r.puertas || []).map(x => `${x.nombre}-${x.ubicacion}(${x.estado})`).join(' | '),
+    Recomendaciones: r.recomendaciones
+  };
+  const js = JSON.stringify(r);
+  if (js.length < 32000) row._json = js;
+  return row;
+}
+function exportToExcel(list, suffix) {
+  const data = list || activeReports();
+  if (!data.length) { showToast('⚠️ No hay reportes para exportar', 'warning'); return; }
+  const ws = XLSX.utils.json_to_sheet(data.map(flatRow));
+  const wb = XLSX.utils.book_new();
+  XLSX.utils.book_append_sheet(wb, ws, 'Reportes');
+  XLSX.writeFile(wb, `Base_Reportes_Turno_${suffix || new Date().toISOString().slice(0, 10)}.xlsx`);
+  showToast('✅ Excel exportado correctamente');
+}
+function exportPeriodo() {
+  const { list, range } = scopeData();
+  exportToExcel(list, range.start + '_a_' + range.end);
+}
+
+function importFromExcel() { $('importFile').click(); }
+function normFecha(v) {
+  if (typeof v === 'number') { const d = new Date(Math.round((v - 25569) * 86400 * 1000)); return `${d.getUTCFullYear()}-${pad(d.getUTCMonth()+1)}-${pad(d.getUTCDate())}`; }
+  return String(v || '');
+}
+function parseList(str, kind) {
+  if (!str) return [];
+  return String(str).split(' | ').map(s => {
+    if (kind === 'inc') {
+      const m = s.match(/^(.*?)-(.*)\((Verde|Amarillo|Naranja|Rojo)\)$/);
+      return m ? { folio: m[1], descripcion: m[2], nivel: m[3] } : { folio: '', descripcion: s, nivel: 'Verde' };
+    }
+    const m = s.match(/^(.*?)-(.*)\(([^()]*)\)$/);
+    const f = EQUIP[kind].f;
+    const o = {}; f.forEach(x => o[x] = '');
+    if (m) { o[f[0]] = m[1]; o[f[1]] = m[2]; o.estado = m[3]; } else { o[f[0]] = s; o.estado = EQUIP[kind].def; }
+    return o;
+  });
+}
+function handleImport(ev) {
+  const file = ev.target.files[0];
+  if (!file) return;
+  const reader = new FileReader();
+  reader.onload = (e) => {
+    try {
+      const wb = XLSX.read(new Uint8Array(e.target.result), { type: 'array' });
+      const rows = XLSX.utils.sheet_to_json(wb.Sheets[wb.SheetNames[0]]);
+      let added = 0;
+      rows.forEach(r => {
+        let rep = null;
+        if (r._json) { try { rep = JSON.parse(r._json); } catch (x) {} }
+        if (!rep && r.Folio) {
+          rep = {
+            folio: String(r.Folio), fecha: normFecha(r.Fecha), hora: r.Hora || '', turno: r.Turno || 'Matutino',
+            instalacion: r.Instalacion || '', jefe: r.Jefe || '', resumen: r.Resumen || '',
+            visitante: r.Visitante || 0, sinGafete: r.EmpleadoSinGafete || 0, contratista: r.Contratista || 0, eom: r.EOM || 0,
+            nuevosIngresos: r.NuevosIngresos || 0, proveedores: r.Proveedores || 0, denegados: r.Denegados || 0,
+            autoridades: r.Autoridades || 0, vip: r.VIP || 0,
+            plantillaTotal: r.PlantillaTotal || 0, personalAsistio: r.PersonalAsistio || 0, personalPuntual: r.PersonalPuntual || 0,
+            obsPersonal: r.ObsPersonal || '', recomendaciones: r.Recomendaciones || '',
+            incidentes: parseList(r.Incidentes, 'inc'),
+            radios: parseList(r.Radios, 'radios'), torniquetes: parseList(r.Torniquetes, 'torniquetes'),
+            lectoras: parseList(r.Lectoras, 'lectoras'), puertas: parseList(r.PuertasIDF, 'puertas'),
+            timestamp: new Date().toISOString()
+          };
+        }
+        if (!rep || !rep.folio || database.some(d => d.folio === rep.folio)) return;
+        rep.fecha = normFecha(rep.fecha);
+        rep.updatedAt = rep.updatedAt || new Date().toISOString();
+        rep.deleted = false;
+        database.push(rep); addPending(rep.folio); added++;
+      });
+      persistDB();
+      showToast(`✅ ${added} reportes importados`);
+      refreshAfterDataChange();
+      if (added) syncNow();
+    } catch (err) { showToast('❌ Error al importar: ' + err.message, 'error'); }
+    ev.target.value = '';
+  };
+  reader.readAsArrayBuffer(file);
+}
+
+function renderReportTable() {
+  const search = (($('searchInput') && $('searchInput').value) || '').toLowerCase();
+  const pend = getPending();
+  const filtered = activeReports()
+    .filter(r => !search || [r.folio, r.instalacion, r.jefe, r.fecha, r.turno].some(v => String(v || '').toLowerCase().includes(search)))
+    .sort((a, b) => (String(b.fecha) + String(b.hora)).localeCompare(String(a.fecha) + String(a.hora)));
+  const c = $('tableContainer');
+  if (!filtered.length) {
+    c.innerHTML = '<div class="empty-state"><div class="emoji">📭</div><p>No hay reportes guardados</p><p style="font-size:12px; margin-top:6px;">Captura un reporte y presiona "Guardar"</p></div>';
+    return;
+  }
+  c.innerHTML = `
+    <table class="report-table">
+      <thead><tr><th>Folio</th><th>Fecha</th><th>Hora</th><th>Turno</th><th>Instalación</th><th>Jefe</th><th>Nube</th><th>Acciones</th></tr></thead>
+      <tbody>${filtered.map(r => `
+        <tr>
+          <td><strong>${esc(r.folio)}</strong></td>
+          <td>${esc(r.fecha)}</td>
+          <td>${esc(r.hora)}</td>
+          <td>${esc(r.turno)}</td>
+          <td>${esc(r.instalacion)}</td>
+          <td>${esc(r.jefe)}</td>
+          <td>${!cfg.url ? '—' : pend.includes(r.folio) ? '⏳' : '☁️'}</td>
+          <td><div class="row-actions">
+            <button type="button" class="btn-view" onclick="loadReport(this.dataset.f)" data-f="${esc(r.folio)}">📂 Cargar</button>
+            <button type="button" class="btn-print" onclick="loadReport(this.dataset.f, true)" data-f="${esc(r.folio)}">📄 PDF</button>
+            <button type="button" class="btn-delete" onclick="deleteReport(this.dataset.f)" data-f="${esc(r.folio)}" aria-label="Eliminar">🗑️</button>
+          </div></td>
+        </tr>`).join('')}
+      </tbody>
+    </table>`;
+}
+
+function loadReport(folio, autoPrint) {
+  const r = database.find(x => x.folio === folio && !x.deleted);
+  if (!r) return;
+  fillForm(r);
+  val('folio', r.folio);
+  $('folioDisplay').textContent = 'Folio: ' + r.folio;
+  updateDashboard();
+  showToast('📂 Reporte ' + folio + ' cargado');
+  if (autoPrint) { showTab(3); setTimeout(generarPDF, 600); }
+  else showTab(0);
+}
+
+function deleteReport(folio) {
+  if (!confirm('¿Eliminar el reporte ' + folio + '?' + (cfg.url ? ' También se eliminará de la nube.' : ''))) return;
+  const i = database.findIndex(r => r.folio === folio);
+  if (i >= 0) database[i] = { folio, deleted: true, updatedAt: new Date().toISOString() };
+  persistDB();
+  addPending(folio);
+  refreshAfterDataChange();
+  syncNow();
+  showToast('🗑️ Reporte eliminado');
+}
+
+function showToast(msg, type) {
+  const t = $('toast');
+  t.textContent = msg;
+  t.className = 'toast show ' + (type === 'error' ? 'error' : type === 'warning' ? 'warning' : '');
+  clearTimeout(showToast._t);
+  showToast._t = setTimeout(() => t.classList.remove('show'), 3000);
+}
+
+// ==== SINCRONIZACIÓN EN LA NUBE (Google Sheets vía Apps Script) ====
+function ago(t) {
+  const s = Math.max(0, Math.round((Date.now() - t) / 1000));
+  return s < 60 ? `hace ${s}s` : `hace ${Math.round(s / 60)} min`;
+}
+function updateSyncChip() {
+  const c = $('syncChip'); if (!c) return;
+  const pend = getPending().length;
+  let cls = '', txt = '💾 Solo en este equipo';
+  if (cfg.url) {
+    if (syncState === 'sync') { cls = 'sync'; txt = '☁️ Sincronizando…'; }
+    else if (syncState === 'error') { cls = 'error'; txt = '⚠️ Sin conexión' + (pend ? ` · ${pend} por enviar` : ''); }
+    else if (pend) { cls = 'pending'; txt = `☁️ ${pend} por enviar`; }
+    else { cls = 'ok'; txt = '☁️ Sincronizado' + (lastSync ? ' · ' + ago(lastSync) : ''); }
+  }
+  c.className = 'sync-chip ' + cls;
+  c.textContent = txt;
+  c.title = syncError || 'Configurar sincronización en la nube';
+}
+
+async function api(action, payload) {
+  const ctrl = new AbortController();
+  const to = setTimeout(() => ctrl.abort(), 30000);
+  try {
+    const res = await fetch(cfg.url, {
+      method: 'POST', redirect: 'follow', signal: ctrl.signal,
+      body: JSON.stringify(Object.assign({ token: cfg.token || '', action }, payload || {}))
+    });
+    let data;
+    try { data = await res.json(); }
+    catch (e) { throw new Error('Respuesta inválida: revisa que la implementación permita acceso a "Cualquier persona"'); }
+    if (data.error) throw new Error(data.error);
+    return data;
+  } finally { clearTimeout(to); }
+}
+
+function mergeRemote(list) {
+  let changed = false;
+  list.forEach(rr => {
+    if (!rr || !rr.folio) return;
+    delete rr._serverAt;
+    const i = database.findIndex(x => x.folio === rr.folio);
+    if (i < 0) { database.push(rr); changed = true; }
+    else if (ts(rr) > ts(database[i])) { database[i] = rr; changed = true; }
+  });
+  if (changed) persistDB();
+  return changed;
+}
+
+async function syncNow(manual) {
+  if (!cfg.url) { if (manual) openSyncModal(); return; }
+  if (syncing) return;
+  if (navigator.onLine === false) { syncState = 'error'; syncError = 'Sin conexión a internet'; updateSyncChip(); if (manual) showToast('⚠️ Sin internet: se enviará al volver la conexión', 'warning'); return; }
+  syncing = true; syncState = 'sync'; updateSyncChip();
+  try {
+    const pend = getPending();
+    const sent = {};
+    const recs = database.filter(r => pend.includes(r.folio));
+    recs.forEach(r => sent[r.folio] = r.updatedAt);
+    const res = await api('sync', { reports: recs, since: localStorage.getItem(SINCE_KEY) || '' });
+    setPending(getPending().filter(f => !(f in sent) || (database.find(r => r.folio === f) || {}).updatedAt !== sent[f]));
+    const remote = res.reports || [];
+    const maxSrv = remote.reduce((m, r) => (r._serverAt && r._serverAt > m ? r._serverAt : m), localStorage.getItem(SINCE_KEY) || '');
+    const changed = mergeRemote(remote);
+    if (maxSrv) localStorage.setItem(SINCE_KEY, maxSrv);
+    lastSync = Date.now(); syncState = 'idle'; syncError = '';
+    if (changed || recs.length) refreshAfterDataChange();
+    if (manual) showToast('☁️ Sincronizado correctamente');
+  } catch (e) {
+    syncState = 'error'; syncError = e.name === 'AbortError' ? 'Tiempo de espera agotado' : e.message;
+    if (manual) showToast('❌ ' + syncError, 'error');
+  } finally { syncing = false; updateSyncChip(); }
+}
+
+function restartPoll() {
+  clearInterval(pollTimer);
+  const s = Number(cfg.interval);
+  if (cfg.url && s > 0) pollTimer = setInterval(() => { if (!document.hidden) syncNow(); }, s * 1000);
+}
+
+function openSyncModal() {
+  $('syncUrl').value = cfg.url || '';
+  $('syncToken').value = cfg.token || '';
+  $('syncInterval').value = String(cfg.interval ?? 30);
+  $('syncStatus').textContent = '';
+  $('syncModal').classList.add('show');
+}
+function closeSyncModal() { $('syncModal').classList.remove('show'); }
+function readSyncInputs() {
+  return { url: $('syncUrl').value.trim(), token: $('syncToken').value.trim(), interval: Number($('syncInterval').value) };
+}
+async function testSync() {
+  const c = readSyncInputs();
+  const st = $('syncStatus');
+  if (!/^https:\/\/script\.google\.com\//.test(c.url)) { st.style.color = '#c53030'; st.textContent = 'La URL debe empezar con https://script.google.com/'; return; }
+  const prev = cfg; cfg = c;
+  st.style.color = '#4a5568'; st.textContent = 'Probando conexión…';
+  try {
+    const r = await api('ping');
+    st.style.color = '#2f855a'; st.textContent = `✅ Conexión correcta. Reportes en la nube: ${r.count}`;
+  } catch (e) { st.style.color = '#c53030'; st.textContent = '❌ ' + e.message; }
+  finally { cfg = prev; }
+}
+function saveSyncConfig() {
+  const c = readSyncInputs();
+  if (!/^https:\/\/script\.google\.com\//.test(c.url) || !c.token) {
+    $('syncStatus').style.color = '#c53030';
+    $('syncStatus').textContent = 'Captura la URL (https://script.google.com/...) y el token.';
+    return;
+  }
+  const changedUrl = c.url !== cfg.url;
+  cfg = c; store(CFG_KEY, cfg);
+  if (changedUrl) { localStorage.removeItem(SINCE_KEY); setPending(database.map(r => r.folio)); }
+  restartPoll(); closeSyncModal(); updateSyncChip(); syncNow(true);
+}
+function disableSync() {
+  if (!confirm('¿Desactivar la sincronización? Tus reportes seguirán guardados en este equipo.')) return;
+  cfg = {}; store(CFG_KEY, cfg); clearInterval(pollTimer);
+  localStorage.removeItem(SINCE_KEY);
+  closeSyncModal(); updateSyncChip(); renderReportTable();
+}
+function copyConfigLink() {
+  const c = readSyncInputs();
+  if (!c.url || !c.token) { $('syncStatus').style.color = '#c53030'; $('syncStatus').textContent = 'Primero captura URL y token.'; return; }
+  const link = location.href.split('#')[0] + '#cfg=' + btoa(unescape(encodeURIComponent(JSON.stringify({ url: c.url, token: c.token, interval: c.interval }))));
+  const done = () => { $('syncStatus').style.color = '#2f855a'; $('syncStatus').textContent = '✅ Enlace copiado. Quien lo abra queda configurado: compártelo solo por un canal privado.'; };
+  if (navigator.clipboard) navigator.clipboard.writeText(link).then(done, () => prompt('Copia este enlace:', link));
+  else prompt('Copia este enlace:', link);
+}
+function applyHashConfig() {
+  if (!location.hash.startsWith('#cfg=')) return;
+  try {
+    const c = JSON.parse(decodeURIComponent(escape(atob(location.hash.slice(5)))));
+    if (c.url && c.token) {
+      cfg = { url: c.url, token: c.token, interval: c.interval ?? 30 };
+      store(CFG_KEY, cfg);
+      setPending(database.map(r => r.folio));
+      history.replaceState(null, '', location.pathname + location.search);
+      setTimeout(() => showToast('☁️ Sincronización configurada en este equipo'), 300);
+    }
+  } catch (e) {}
+}
+
+// ==== VISTA PREVIA Y PDF ====
+function updatePreview() {
+  const R = getCurrentReport(true);
+  const m = metrics(R);
+  const incHTML = R.incidentes.length ? R.incidentes.map(i =>
+    `<li>${esc(i.folio || 'S/F')} - ${esc(i.descripcion)} <span class="alert-badge alert-${esc(String(i.nivel).toLowerCase())}">${esc(i.nivel)}</span></li>`
+  ).join('') : '<li style="color:#999;">Sin incidentes</li>';
+  const plantilla = R.plantillaTotal || 1;
+  const pAsist = Math.round((R.personalAsistio / plantilla) * 100);
+  const pPunt = R.personalAsistio ? Math.round((R.personalPuntual / R.personalAsistio) * 100) : 0;
+  const eqTxt = (k, fn) => R[k].map(fn).join('; ') || '-';
+
+  $('previewContent').innerHTML = `
+    <div style="border-bottom:3px solid #d69e2e; padding-bottom:10px; margin-bottom:15px;">
+      <h2 style="color:#1e3a5f;">REPORTE DIRECTIVO DE TURNO</h2>
+      <p style="font-size:12px; color:#718096;">Folio: <b>${esc(R.folio)}</b> · ${esc(R.fecha)} ${esc(R.hora)}</p>
+    </div>
+    <table style="width:100%; font-size:13px; margin-bottom:15px;">
+      <tr><td style="padding:4px;"><b>Instalación:</b></td><td>${esc(R.instalacion)}</td>
+          <td style="padding:4px;"><b>Turno:</b></td><td>${esc(R.turno)}</td></tr>
+      <tr><td style="padding:4px;"><b>Jefe:</b></td><td colspan="3">${esc(R.jefe)}</td></tr>
+    </table>
+    <h4 style="color:#1e3a5f;">01. Resumen Ejecutivo</h4>
+    <p style="font-size:13px;">${esc(R.resumen) || 'Sin información'}</p>
+    <h4 style="color:#2f855a; margin-top:14px;">02. Estadísticas de Acceso</h4>
+    <p style="font-size:13px;">${ACCESS.map(f => `${esc(f.short)}: <b>${R[f.key]}</b>`).join(' · ')}</p>
+    <p style="font-size:13px;"><b>Total de accesos: ${m.total}</b></p>
+    <h4 style="color:#c53030; margin-top:14px;">03. Incidentes Documentados</h4>
+    <ul style="font-size:13px; padding-left:20px;">${incHTML}</ul>
+    <h4 style="color:#6b46c1; margin-top:14px;">04. Estado del Personal</h4>
+    <p style="font-size:13px;">Plantilla: <b>${plantilla}</b> · Asistió: <b>${R.personalAsistio}</b> (${pAsist}%) · Puntual: <b>${R.personalPuntual}</b> (${pPunt}%)</p>
+    <p style="font-size:13px;">${esc(R.obsPersonal)}</p>
+    <h4 style="color:#2f855a; margin-top:14px;">05. Estado Tecnológico</h4>
+    <p style="font-size:13px;"><b>Radios (${R.radios.length}):</b> ${esc(eqTxt('radios', r => `${r.nombre}/${r.posicion} [${r.estado}]`))}</p>
+    <p style="font-size:13px;"><b>Torniquetes (${R.torniquetes.length}):</b> ${esc(eqTxt('torniquetes', t => `${t.nombre}/${t.ubicacion} [${t.estado}]`))}</p>
+    <p style="font-size:13px;"><b>Lectoras (${R.lectoras.length}):</b> ${esc(eqTxt('lectoras', l => `${l.nombre}/${l.serie} [${l.estado}]`))}</p>
+    <p style="font-size:13px;"><b>Puertas IDF (${R.puertas.length}):</b> ${esc(eqTxt('puertas', p => `${p.nombre}/${p.ubicacion} [${p.estado}]`))}</p>
+    <h4 style="color:#b7791f; margin-top:14px;">06. Recomendaciones</h4>
+    <p style="font-size:13px;">${esc(R.recomendaciones) || 'Sin recomendaciones'}</p>
+  `;
+}
+
+async function generarPDF() {
+  const status = $('pdfStatus');
+  status.style.display = 'block';
+  status.style.background = '#fef3c7';
+  status.style.color = '#92400e';
+  status.innerHTML = '⏳ Generando PDF...';
+
+  const tabs = document.querySelectorAll('.tab');
+  const contents = document.querySelectorAll('.tab-content');
+  const activeTabIdx = Array.from(tabs).findIndex(t => t.classList.contains('active'));
+  const incluirGraficas = getValue('incluirGraficas') === 'si';
+  const prevScope = { mode: scope.mode, offset: scope.offset };
+
+  try {
+    // Las gráficas del PDF son siempre las del reporte actual (modo "Turno actual")
+    scope.mode = 'turno'; scope.offset = 0;
+    if (incluirGraficas) {
+      tabs.forEach(t => t.classList.remove('active'));
+      contents.forEach(c => c.classList.remove('active'));
+      tabs[1].classList.add('active');
+      contents[1].classList.add('active');
+      updateDashboard();
+      await new Promise(r => setTimeout(r, 1200));
+    }
+    const R = getCurrentReport(true);
+    const m = metrics(R);
+    const { jsPDF } = window.jspdf;
+    const orient = getValue('orientacion');
+    const doc = new jsPDF(orient, 'mm', 'a4');
+    const pageW = doc.internal.pageSize.getWidth();
+    const pageH = doc.internal.pageSize.getHeight();
+    let y = 15;
+
+    doc.setFillColor(15, 23, 42); doc.rect(0, 0, pageW, 25, 'F');
+    doc.setFillColor(214, 158, 46); doc.rect(0, 25, pageW, 2, 'F');
+    doc.setTextColor(255,255,255);
+    doc.setFontSize(16); doc.setFont('helvetica','bold');
+    doc.text('REPORTE DIRECTIVO DE TURNO', pageW/2, 12, {align:'center'});
+    doc.setFontSize(9); doc.setFont('helvetica','normal');
+    doc.text(`Folio: ${R.folio} · ${R.fecha} ${R.hora}`, pageW/2, 19, {align:'center'});
+
+    y = 35;
+    doc.setTextColor(0,0,0); doc.setFontSize(9);
+    const colW = (pageW-20)/4;
+    doc.setFillColor(247,250,252); doc.rect(10, y, pageW-20, 14, 'F');
+    doc.setFont('helvetica','bold');
+    doc.text('Instalación:', 12, y+5); doc.text('Turno:', 12+colW, y+5);
+    doc.text('Jefe:', 12+colW*2, y+5); doc.text('Hora:', 12+colW*3, y+5);
+    doc.setFont('helvetica','normal');
+    doc.text(R.instalacion||'---', 12, y+11);
+    doc.text(`${R.turno} ${R.fecha}`, 12+colW, y+11);
+    doc.text(R.jefe||'---', 12+colW*2, y+11);
+    doc.text(R.hora||'---', 12+colW*3, y+11);
+    y += 18;
+
+    y = addSection(doc, y, '01. RESUMEN EJECUTIVO', [30,58,95]);
+    y = addText(doc, y, R.resumen||'Sin información', pageW);
+
+    y = addSection(doc, y, '02. ESTADÍSTICAS DE ACCESO', [47,133,90]);
+    y = addText(doc, y, ACCESS.map(f => `${f.short}: ${R[f.key]}`).join('  '), pageW);
+    doc.setFont('helvetica','bold');
+    doc.text(`TOTAL DE ACCESOS: ${m.total}`, 12, y+2);
+    y += 8;
+
+    y = addSection(doc, y, '03. INCIDENTES DOCUMENTADOS', [197,48,48]);
+    if (!R.incidentes.length) y = addText(doc, y, 'Sin incidentes registrados.', pageW);
+    else {
+      doc.setFont('helvetica','normal'); doc.setFontSize(9);
+      R.incidentes.forEach(i => {
+        if (y > pageH-25) { doc.addPage(); y = 15; }
+        doc.text(`• ${i.folio||'S/F'} - ${i.descripcion} [${i.nivel}]`, 12, y);
+        y += 5;
+      });
+      y += 3;
+    }
+
+    if (y > pageH-50) { doc.addPage(); y = 15; }
+    y = addSection(doc, y, '04. ESTADO DEL PERSONAL', [107,70,193]);
+    const plantilla = R.plantillaTotal||1;
+    const pAsist = Math.round((R.personalAsistio/plantilla)*100);
+    const pPunt = R.personalAsistio ? Math.round((R.personalPuntual/R.personalAsistio)*100) : 0;
+    y = addText(doc, y, `Plantilla: ${plantilla}  Asistió: ${R.personalAsistio} (${pAsist}%)  Puntual: ${R.personalPuntual} (${pPunt}%)`, pageW);
+    if (R.obsPersonal) y = addText(doc, y, `Observaciones: ${R.obsPersonal}`, pageW);
+
+    y = addSection(doc, y, '05. ESTADO TECNOLÓGICO', [47,133,90]);
+    const secciones = [
+      ['Radios:', 'radios', x => `  • ${x.nombre} - ${x.posicion} [${x.estado}]`, '  Sin radios registrados'],
+      ['Torniquetes:', 'torniquetes', x => `  • ${x.nombre} - ${x.ubicacion} [${x.estado}]`, '  Sin torniquetes registrados'],
+      ['Lectoras:', 'lectoras', x => `  • ${x.nombre} - S/N: ${x.serie} [${x.estado}]`, '  Sin lectoras registradas'],
+      ['Puertas IDF:', 'puertas', x => `  • ${x.nombre} - ${x.ubicacion} [${x.estado}]`, '  Sin puertas registradas']
+    ];
+    doc.setFontSize(9);
+    secciones.forEach(([titulo, k, fmt, vacio]) => {
+      if (y > pageH-20) { doc.addPage(); y = 15; }
+      doc.setFont('helvetica','bold'); doc.text(titulo, 12, y); y += 5;
+      doc.setFont('helvetica','normal');
+      R[k].forEach(x => { if (y>pageH-15){doc.addPage();y=15;} doc.text(fmt(x), 12, y); y+=5; });
+      if (!R[k].length) { doc.text(vacio, 12, y); y+=5; }
+    });
+    y += 3;
+
+    if (y > pageH-30) { doc.addPage(); y = 15; }
+    y = addSection(doc, y, '06. RECOMENDACIONES DEL JEFE', [183,121,31]);
+    y = addText(doc, y, R.recomendaciones||'Sin recomendaciones.', pageW);
+
+    if (incluirGraficas) {
+      doc.addPage();
+      doc.setFillColor(15,23,42); doc.rect(0,0,pageW,25,'F');
+      doc.setFillColor(214,158,46); doc.rect(0,25,pageW,2,'F');
+      doc.setTextColor(255,255,255); doc.setFontSize(14); doc.setFont('helvetica','bold');
+      doc.text('DASHBOARD VISUAL - ANEXO GRÁFICO', pageW/2, 15, {align:'center'});
+      doc.setTextColor(0,0,0);
+
+      const lista = [
+        ['chartAccesos','Distribución de Accesos'], ['chartAccesosBar','Accesos por Categoría'],
+        ['chartPersonal','Estado del Personal'], ['chartTecnologico','Estado Tecnológico'],
+        ['chartIncidentes','Incidentes por Nivel'], ['chartRadar','Radar del Servicio']
+      ];
+      let cy = 35; const chartW = (pageW-30)/2; const chartH = 65;
+      let placed = 0;
+      for (let i=0; i<lista.length; i++) {
+        const ch = charts[lista[i][0]];
+        const canvas = $(lista[i][0]);
+        if (!ch || !canvas || canvas.width === 0 || canvas.height === 0) continue;
+        let img;
+        try { img = ch.toBase64Image('image/png', 1); }
+        catch (err) { console.warn('Skip chart', lista[i][0], err); continue; }
+        if (!img || !img.startsWith('data:image/png') || img.length < 200) continue;
+        const col = placed % 2, row = Math.floor(placed / 2);
+        const x = 10 + col * (chartW+10);
+        const yPos = cy + row * (chartH+12);
+        if (yPos + chartH > pageH-10) { doc.addPage(); cy = 15; placed = 0; i--; continue; }
+        doc.setFont('helvetica','bold'); doc.setFontSize(10);
+        doc.text(lista[i][1], x, yPos);
+        try { doc.addImage(img, 'PNG', x, yPos+3, chartW, chartH); placed++; }
+        catch (err) { console.warn('addImage failed', lista[i][0], err); }
+      }
+    }
+
+    const pc = doc.internal.getNumberOfPages();
+    for (let i=1; i<=pc; i++) {
+      doc.setPage(i); doc.setFontSize(8); doc.setTextColor(150,150,150);
+      doc.text(`Página ${i} de ${pc}`, pageW-10, pageH-5, {align:'right'});
+      doc.text(`Generado: ${new Date().toLocaleString('es-MX')}`, 10, pageH-5);
+    }
+
+    const filename = `Reporte_${R.folio}_${R.fecha||''}.pdf`;
+    doc.save(filename);
+    status.style.background = '#d1fae5'; status.style.color = '#065f46';
+    status.innerHTML = '✅ PDF generado: <b>' + esc(filename) + '</b>';
+  } catch (e) {
+    status.style.background = '#fee2e2'; status.style.color = '#991b1b';
+    status.innerHTML = '❌ Error: ' + esc(e.message);
+    console.error(e);
+  } finally {
+    scope.mode = prevScope.mode; scope.offset = prevScope.offset;
+    if (activeTabIdx >= 0) {
+      tabs.forEach(t => t.classList.remove('active'));
+      contents.forEach(c => c.classList.remove('active'));
+      tabs[activeTabIdx].classList.add('active');
+      contents[activeTabIdx].classList.add('active');
+    }
+    syncScopeUI();
+    if (dashActive()) updateDashboard(); else dashDirty = true;
+  }
+}
+
+function addSection(doc, y, title, color) {
+  const pageW = doc.internal.pageSize.getWidth();
+  const pageH = doc.internal.pageSize.getHeight();
+  if (y > pageH-30) { doc.addPage(); y = 15; }
+  doc.setFillColor(color[0],color[1],color[2]); doc.rect(10, y, 3, 8, 'F');
+  doc.setFillColor(247,250,252); doc.rect(13, y, pageW-23, 8, 'F');
+  doc.setTextColor(color[0],color[1],color[2]); doc.setFontSize(10); doc.setFont('helvetica','bold');
+  doc.text(title, 15, y+5.5); doc.setTextColor(0,0,0);
+  return y+11;
+}
+function addText(doc, y, text, pageW) {
+  const pageH = doc.internal.pageSize.getHeight();
+  doc.setFontSize(9); doc.setFont('helvetica','normal');
+  const lines = doc.splitTextToSize(text, pageW-25);
+  lines.forEach(line => {
+    if (y > pageH-15) { doc.addPage(); y = 15; }
+    doc.text(line, 12, y); y += 4.5;
+  });
+  return y+3;
+}
+</script>
+</body>
+</html>
